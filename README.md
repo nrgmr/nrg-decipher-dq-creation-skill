@@ -8,7 +8,7 @@ A Claude Code skill that turns *"build me a question that behaves like a video f
 into a complete, verified DQ package — with a boilerplate survey that doubles as the
 Survey Designer's manual.
 
-`37 local checks` · `5 archetypes` · `6 commands` · `9 reference chapters` · `zero dependencies`
+`37 local checks` · `5 archetypes` · `7 commands` · `9 reference chapters` · `zero dependencies`
 
 </div>
 
@@ -21,6 +21,7 @@ Survey Designer's manual.
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Quick start](#quick-start)
+- [Without a terminal: what the conversation looks like](#without-a-terminal-what-the-conversation-looks-like)
 - [The loop](#the-loop)
 - [What a scaffold contains](#what-a-scaffold-contains)
 - [Archetypes](#archetypes)
@@ -92,44 +93,100 @@ a check is a behaviour that cannot ship broken.**
 
 ## Installation
 
-The skill is a plain directory of Markdown, Python and XML. It has **no dependencies**
-beyond Python 3.10 or newer, which is already present wherever Claude Code runs.
+Two ways to use this, for two audiences. Pick by whether you work in a terminal.
 
-The clone target must be named `decipher-dq`. Claude Code takes the skill name from
-the directory, not from the repository, and the two differ here.
+| | **Claude app or claude.ai** | **Claude Code** |
+|---|---|---|
+| **Who** | Survey Designers, project managers, anyone who does not want a terminal | Developers |
+| **Install** | Upload one `.zip` in settings | Clone a folder |
+| **Your survey files** | You attach them to the chat | Read from disk directly |
+| **What you get back** | A `.zip` to download, with `UPLOAD.md` inside | Files written into your project |
+| **Needs** | Pro, Max, Team or Enterprise, with code execution on | Python 3.10+ |
 
-### As a personal skill — available in every project
+Skills do **not** sync between the two. Install in each place you want to use it.
+
+---
+
+### A. Claude app or claude.ai — no terminal required
+
+Ask whoever set this up for the `decipher-dq.zip` file, or build it yourself with
+one command:
+
+```bash
+python3 scripts/build_claude_zip.py     # writes dist/decipher-dq.zip
+```
+
+Then, in Claude:
+
+1. **Settings → Capabilities**, and turn on **code execution**. Nothing works without
+   it, because the skill runs Python to verify what it builds.
+2. **Settings → Capabilities → Skills**, press **+**, then **Create skill**.
+3. Choose `decipher-dq.zip`. It appears in your skills list.
+4. Start a new chat and describe what you want in plain language:
+   > *Create a Dynamic Question that behaves like an image gallery, where the
+   > respondent picks three pictures out of nine.*
+
+The skill loads itself and interviews you before it writes anything. When it finishes
+you get a **`.zip` to download** containing a folder tree that mirrors the server, and
+an `UPLOAD.md` that names the destination of every folder, lists the file checksums,
+and says which files must never be uploaded.
+
+> [!NOTE]
+> Custom skills on claude.ai are per person: each teammate uploads the zip themselves.
+> Team and Enterprise administrators can instead publish it organisation-wide through
+> organisation settings, which distributes it once for everyone.
+
+**One thing to know.** Claude cannot see your Decipher server or your survey files.
+When it needs one, it will ask you to attach it — typically the `survey.xml` of the
+survey the question will go into. Attach the file and give it the numeric survey ID.
+It will not invent either.
+
+---
+
+### B. Claude Code — for developers
+
+The skill is a plain directory of Markdown, Python and XML, with **no dependencies**
+beyond Python 3.10 or newer.
+
+The clone target must be named `decipher-dq`. The skill name comes from the directory,
+not from the repository, and the two differ here.
+
+**Personal — available in every project:**
 
 ```bash
 git clone https://github.com/lyle-nrg/nrg-decipher-dq-creation-skill.git \
   ~/.claude/skills/decipher-dq
 ```
 
-### As a project skill — checked in and shared with the team
+**Project — checked in and shared with the team:**
 
 ```bash
 git clone https://github.com/lyle-nrg/nrg-decipher-dq-creation-skill.git \
   .claude/skills/decipher-dq
 ```
 
-Or, to keep it updatable inside an existing repository:
+Or as a submodule, to keep it updatable inside an existing repository:
 
 ```bash
 git submodule add https://github.com/lyle-nrg/nrg-decipher-dq-creation-skill.git \
   .claude/skills/decipher-dq
 ```
 
-### Verify the installation
+Confirm it works:
 
 ```bash
 cd ~/.claude/skills/decipher-dq
 python3 scripts/dq.py --help
-python3 tests/test_verify.py        # 86 tests, a few seconds
+python3 tests/test_verify.py        # 55 tests, about 3 seconds
 ```
 
-Claude Code discovers the skill from `SKILL.md` at the directory root. Ask for a DQ in
-natural language — *"create a DQ that works like an image gallery"* — and the skill
-loads itself.
+Then ask for a DQ in natural language — *"create a DQ that works like an image
+gallery"* — and the skill loads itself.
+
+> [!TIP]
+> On WSL, clone into your Linux home directory rather than anywhere under `/mnt/c`.
+> That mount refuses `chmod`, so `git init` fails there outright, and file access is
+> several times slower.
 
 > [!IMPORTANT]
 > Install this repository on its own. Do **not** run `git init` in a directory that also
@@ -139,10 +196,15 @@ loads itself.
 
 ### Updating
 
+**Claude Code:**
+
 ```bash
 cd ~/.claude/skills/decipher-dq && git pull
 python3 tests/test_verify.py
 ```
+
+**Claude app:** rebuild the zip and upload it again, replacing the old skill. There is
+no in-place update.
 
 The test suite is the upgrade check. If it passes, the checks still defend what they
 claim to defend.
@@ -274,6 +336,89 @@ Send back: confirmation, or any error text verbatim.
     survey.xml                           3862  8ecfaad7e3b8c685
 ```
 
+## Without a terminal: what the conversation looks like
+
+The whole flow in the Claude app, for someone who will never run a command. Nothing
+below is typed into a shell.
+
+**You:**
+
+> Create a Dynamic Question that shows nine product images in a grid and asks the
+> respondent to pick their top three, in order.
+
+**Claude** loads the skill and asks the questions the archetype says must be answered
+first — because a request like that leaves the decisions that matter open:
+
+> Before I build anything, five things:
+>
+> 1. Nine images always, or does it vary by respondent?
+> 2. Must all three picks be made before continuing, or may they pick fewer?
+> 3. Do you need the **order** of the three picks recorded, or only which three?
+> 4. Should the images be the same for everyone, or rotated?
+> 5. Which devices — phone only, or desktop too?
+
+You answer in plain language. It writes the specification, scaffolds the package,
+builds the logic, and runs its own 37 checks until they are clean. Then:
+
+> Done, and `verify` is clean. Two things I need from you:
+>
+> **1.** Attach the `survey.xml` of the survey this question will live in, and tell me
+> its numeric survey ID. I cannot see your Decipher server, so I will not guess either.
+>
+> **2.** Here is the package: **`product_grid_v1.zip`** *(download)*
+>
+> Open `UPLOAD.md` inside it. It tells you which folder goes where, with checksums to
+> compare after uploading.
+
+Inside that zip:
+
+```
+product_grid_v1.zip
+├── UPLOAD.md                          ← read this first
+└── lib/
+    └── product_grid/
+        └── v1/                        ← upload this whole folder
+            ├── meta.xml
+            ├── styles.xml
+            ├── survey.xml             ← the demo, and your instructions
+            ├── IMPORT.md              ← how to add it to a survey
+            ├── spec.json
+            ├── capture_block.xml
+            ├── CHANGELOG.txt
+            └── static/
+```
+
+And `UPLOAD.md` reads:
+
+```markdown
+# Where these files go
+
+This archive mirrors the server. Upload each folder to the matching path, as a
+whole folder rather than file by file.
+
+## 1. The Dynamic Question package
+
+    from this archive   lib/product_grid/v1/
+    to the server       /home/hermes/v2/selfserve/55c/lib/product_grid/v1/
+
+## Do not
+
+- Do not create a `lib` directory under any company other than `55c`.
+- Do not upload `uids.bin`, `original.bin`, any `.pickle` or any `.log`. Those
+  belong to the server. This archive does not contain them.
+- Do not rename anything. The version number is part of how a survey finds this
+  package.
+```
+
+Three properties of this flow are deliberate:
+
+- **The instructions outlive the conversation.** `UPLOAD.md` is in the zip. A chat scrolls
+  away; a file in a folder does not.
+- **A red gate blocks the download.** `bundle` refuses to produce a zip while any check
+  is failing, so a broken package cannot quietly become an upload.
+- **Nothing is invented.** No survey ID, company code or hostname is guessed. If the
+  skill does not have one, it asks, once, and says why.
+
 ## The loop
 
 Six steps. The first and the fourth are the ones that pay for themselves.
@@ -324,6 +469,7 @@ python3 scripts/dq.py <command> --help
 | `bump` | Fork `vN` to `vN+1`, rewriting only anchored, enumerated version sites |
 | `handoff` | Emit one exact human action |
 | `scan` | Find which local surveys reference a DQ version, before changing it |
+| `bundle` | Zip a finished package for download, with `UPLOAD.md` naming every destination |
 
 Exit codes: `0` clean · `1` usage error · `2` verification failed · `3` refused on a
 safety invariant.
@@ -682,7 +828,8 @@ decipher-dq/
 │   └── timed-exposure/          interview
 │
 ├── scripts/
-│   └── dq.py                    six commands, no dependencies
+│   ├── dq.py                    seven commands, no dependencies
+│   └── build_claude_zip.py      packages this skill for claude.ai upload
 │
 ├── checks/                      37 checks in six topical modules
 │   ├── common.py                shared scanners, config, the renderer
@@ -690,8 +837,8 @@ decipher-dq/
 │   └── capture.py    runtime.py version.py
 │
 └── tests/
-    ├── test_verify.py           86 tests: one mutation per check, plus
-    │                            the opt-in corpus class
+    ├── test_verify.py           55 tests: one mutation per check, the
+    │                            packaging paths, plus the opt-in corpus class
     └── corpus_expectations.example.json
 ```
 
@@ -701,8 +848,10 @@ checks. There is nothing to install and nothing to build.
 ## Development
 
 ```bash
-python3 tests/test_verify.py             # all 86
-python3 tests/test_verify.py Scaffolded  # the mutation tests only
+python3 tests/test_verify.py             # all 55
+python3 tests/test_verify.py Scaffolded  # the 39 mutation tests only
+python3 tests/test_verify.py Bundle      # the download path
+python3 tests/test_verify.py ClaudeZip   # the claude.ai archive
 python3 tests/test_verify.py Corpus      # requires DECIPHER_DQ_CORPUS
 ```
 

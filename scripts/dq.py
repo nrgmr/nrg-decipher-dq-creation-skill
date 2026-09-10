@@ -509,6 +509,129 @@ def _manifest(package):
     return rows, total
 
 
+# ------------------------------------------------------------------------ bundle
+
+UPLOAD_TEMPLATE = """# Where these files go
+
+This archive mirrors the server. Upload each folder to the matching path, as a
+whole folder rather than file by file.
+
+## 1. The Dynamic Question package
+
+    from this archive   lib/%(name)s/%(version)s/
+    to the server       %(server_root)s/lib/%(name)s/%(version)s/
+
+%(survey_section)s
+## Do not
+
+- Do not create a `lib` directory under any company other than `%(company)s`.
+- Do not upload `uids.bin`, `original.bin`, any `.pickle` or any `.log`. Those
+  belong to the server. This archive does not contain them.
+- Do not rename anything. The version number is part of how a survey finds this
+  package.
+
+## Checking the upload worked
+
+%(files)d files, %(bytes)d bytes. The SHA-256 of each is below. If your upload
+tool can show checksums, compare them; a truncated text-mode upload of a
+JavaScript file is the failure this catches.
+
+%(manifest)s
+
+## After uploading
+
+A package on the server is not a tested package. It still needs a compile, a
+respondent, the devices the study targets, and an export checked against what
+the respondent actually did.
+"""
+
+SURVEY_SECTION = """## 2. The survey
+
+    from this archive   surveys/%(survey)s/survey.xml
+    to the server       %(server_root)s/%(survey)s/survey.xml
+
+Upload only that one file. Everything else already on the server for survey
+%(survey)s stays as it is, including its `static` folder, which holds assets the
+survey references.
+
+"""
+
+
+def cmd_bundle(args):
+    import zipfile
+
+    package = guard_path(args.package)
+    match = re.fullmatch(r"v(\d+)", package.name)
+    if not match:
+        die("%s is not a vN directory" % package)
+    name = package.parent.name
+
+    ok, found = run_checks(package)
+    errors = [f for f in found if f.severity == ERROR]
+    if errors and not args.force:
+        sys.stderr.write(
+            "refusing to bundle: verify reports %d error(s).\n"
+            "Run  dq.py verify %s\n"
+            "Bundle anyway with --force only if you have read every one and "
+            "decided it does not block.\n" % (len(errors), package))
+        raise SystemExit(FAILED)
+
+    survey_path = Path(args.survey_file).resolve() if args.survey_file else None
+    if survey_path and not survey_path.is_file():
+        die("%s is not a file" % survey_path)
+    survey_id = args.survey or (survey_path.parent.name if survey_path else "")
+    if survey_path and not re.fullmatch(r"\d{4,}", survey_id):
+        die("--survey <id> is required with --survey-file, and must be numeric")
+
+    out_dir = Path(args.out or "dist")
+    target = out_dir / ("%s_%s.zip" % (name, package.name))
+    if target.exists() and not args.force:
+        refuse("%s already exists. Delete it or pass --force." % target)
+
+    rows, total = _manifest(package)
+    survey_section = (SURVEY_SECTION % {"survey": survey_id,
+                                        "server_root": SERVER_ROOT}
+                      if survey_path else "")
+    upload = UPLOAD_TEMPLATE % {
+        "name": name,
+        "version": package.name,
+        "server_root": SERVER_ROOT,
+        "company": COMPANY,
+        "survey_section": survey_section,
+        "files": len(rows),
+        "bytes": total,
+        "manifest": "\n".join(rows),
+    }
+
+    if not args.apply:
+        print("dry run. Would write %s containing:" % target)
+        print("    UPLOAD.md")
+        for path in package_files(package):
+            print("    lib/%s/%s/%s"
+                  % (name, package.name, path.relative_to(package).as_posix()))
+        if survey_path:
+            print("    surveys/%s/survey.xml" % survey_id)
+        print("\nRe-run with --apply.")
+        return OK
+
+    out_dir.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(target, "w", zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("UPLOAD.md", upload)
+        for path in package_files(package):
+            archive.write(path, "lib/%s/%s/%s"
+                          % (name, package.name,
+                             path.relative_to(package).as_posix()))
+        if survey_path:
+            archive.write(survey_path, "surveys/%s/survey.xml" % survey_id)
+
+    print("wrote %s (%d bytes)" % (target, target.stat().st_size))
+    print("Contains UPLOAD.md, which says where each folder goes.")
+    if errors:
+        print("\nNOTE: bundled with --force over %d verify error(s)."
+              % len(errors))
+    return OK
+
+
 def _h_clone(args):
     if not args.source:
         die("--source <survey-id> is required")
@@ -739,6 +862,18 @@ def build_parser():
     p.add_argument("--root", default="test_environment")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_scan)
+
+    p = sub.add_parser("bundle",
+                       help="zip a package for download, with upload instructions")
+    p.add_argument("package")
+    p.add_argument("--survey-file",
+                   help="also include a survey.xml, which has its own destination")
+    p.add_argument("--survey", help="numeric survey id, required with --survey-file")
+    p.add_argument("--out", help="output directory (default: dist)")
+    p.add_argument("--force", action="store_true",
+                   help="bundle despite verify errors, or overwrite an existing zip")
+    p.add_argument("--apply", action="store_true")
+    p.set_defaults(func=cmd_bundle)
 
     return parser
 

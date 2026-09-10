@@ -1,6 +1,6 @@
 ---
 name: decipher-dq
-description: Design, build, verify and hand off Forsta Decipher Dynamic Questions in a test company. Use when asked to create a new reusable question type ("a DQ that looks like a YouTube player"), to iterate an existing DQ version, or to prepare a DQ package and its boilerplate survey for upload. Not for ordinary survey programming and never for a production company.
+description: Build, verify and package Forsta Decipher Dynamic Questions. Use when asked to create or iterate a reusable survey question type, or to package one for upload. Not for ordinary survey scripting.
 metadata:
   short-description: Decipher DQ prototyping, from a client sentence to an upload-ready package
 ---
@@ -18,12 +18,49 @@ each human action in a form that cannot be misread.
 
 ## Environment
 
-Read `config.json` at the skill root before emitting any path, URL or company
-code. It holds the Decipher host, the server root, the test company, the
-companies that are forbidden, and the local working root. Nothing else in this
-skill hardcodes them, and neither should you. If a value there is still the
-placeholder `<your-decipher-host>`, ask for it once rather than guessing —
-a guessed hostname is a wasted round trip.
+Read `config.json` at the skill root, then `config.local.json` if it exists,
+which overrides it key by key. Between them they hold the Decipher host, the
+server root, the test company, the companies that are forbidden, and the local
+working root. Nothing else in this skill hardcodes them, and neither should you.
+If a value is still a placeholder such as `<your-decipher-host>`, ask for it once
+rather than guessing — a guessed hostname is a wasted round trip.
+
+## Establish which runtime you are in, before promising anything
+
+This skill runs in two places and they differ in one way that changes the whole
+handoff: **whether you can see the user's project files.**
+
+Decide by looking, not by assuming. Try to list the configured `local_root`. If
+it is absent and no shell reaches the user's machine, you are in the chat
+runtime.
+
+| | Chat runtime (claude.ai) | Editor runtime (Claude Code) |
+|---|---|---|
+| The user's survey files | Only what they attach to the conversation | On disk, readable directly |
+| Where your output lives | A sandbox that is discarded. It must leave as a **download** | Written into their working tree, where it persists |
+| Existing DQ versions | Unknown unless they attach or describe them | `dq.py scan` answers it |
+| Delivering the result | `dq.py bundle --apply`, then give them the zip | Paths, plus `dq.py handoff` |
+
+**In the chat runtime:**
+
+- Ask for what you cannot see, once and specifically: "attach the `survey.xml`
+  of the survey this will go into, and tell me the numeric survey ID." Do not
+  invent a survey ID, a company code or a host.
+- Never print a path like `test_environment/lib/...` as if it were theirs. It is
+  a path inside a sandbox they cannot browse.
+- Finish with `dq.py bundle <package> --apply`. It writes a zip that mirrors the
+  server layout and contains an `UPLOAD.md` naming the destination of every
+  folder. That file, not the conversation, is what they will still have tomorrow.
+- `bundle` refuses to run while `verify` reports errors. Do not reach for
+  `--force` to get past a red gate; fix the package.
+- Assume the person may not be a developer. Say "the folder called `lib`", not
+  "the lib artifact", and never leave a shell command as the only instruction.
+
+**In the editor runtime**, work in the tree as normal and hand off with paths.
+`bundle` is still available and is worth using when the person doing the upload
+is not the person who ran the skill.
+
+Either way the boundary is the same: you do not upload, compile or run anything.
 
 ## Invariants
 
@@ -64,6 +101,9 @@ real package reached the server broken. `dq.py extract` regenerates
 
 **5. Hand off.** `dq.py handoff <action>` — one action, exact paths, and the
 artifact you need back. See [reference/07-handoff.md](reference/07-handoff.md).
+In the chat runtime, `dq.py bundle <package> --apply` first, and give them the
+zip: its `UPLOAD.md` carries the destinations and checksums, and it survives the
+conversation.
 
 **6. Record.** A `CHANGELOG.txt` entry: what changed, why, what is verified and
 what is not. Then stop and say which evidence you actually have.
@@ -94,6 +134,7 @@ what is not. Then stop and say which evidence you actually have.
 | `bump` | Fork `vN` to `vN+1`, rewriting only enumerated version sites |
 | `handoff` | Emit one exact human action |
 | `scan` | Find which local surveys reference a DQ version |
+| `bundle` | Zip a package for download, with `UPLOAD.md` naming each destination |
 
 `verify` exits non-zero on any error. Do not proceed past it and do not silence a
 check. If a check is wrong, fix the check and add a test in `tests/test_verify.py`

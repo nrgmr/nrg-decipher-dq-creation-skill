@@ -6,6 +6,10 @@ config.local.json
 # not this skill, so it never belongs in the repository.
 tests/corpus_expectations.json
 
+# Build output. Rebuild it with scripts/build_claude_zip.py rather than
+# committing a binary that goes stale the moment SKILL.md changes.
+dist/
+
 # Anything a run drops beside the skill.
 __pycache__/
 *.pyc

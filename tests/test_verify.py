@@ -37,6 +37,8 @@ sys.path.insert(0, str(ROOT))
 
 from checks import run as run_checks                                # noqa: E402
 
+FAILED = 2
+
 
 def build_spec(name="choice_cards"):
     archetype = json.loads(
@@ -53,8 +55,13 @@ def dq(*args):
         capture_output=True, text=True, cwd=str(ROOT))
 
 
-class Scaffolded(unittest.TestCase):
-    """Each test gets a fresh, clean package to break."""
+class ScaffoldBase(unittest.TestCase):
+    """Fixture only: a fresh, clean package per test, plus helpers.
+
+    Deliberately holds no tests. Classes that only need the fixture inherit this
+    rather than Scaffolded, so the mutation suite is not re-executed once per
+    consumer.
+    """
 
     name = "choice_cards"
 
@@ -90,6 +97,10 @@ class Scaffolded(unittest.TestCase):
         self.assertIn(check, firing,
                       "expected %s to fire; %s fired instead"
                       % (check, sorted(firing) or "nothing"))
+
+
+class Scaffolded(ScaffoldBase):
+    """One mutation per check: break exactly one thing, assert its owner fires."""
 
     # baseline
 
@@ -343,7 +354,7 @@ class Scaffolded(unittest.TestCase):
         self.assertFires("stale_version_strings")
 
 
-class Bump(Scaffolded):
+class Bump(ScaffoldBase):
     def test_bump_rewrites_only_anchored_sites(self):
         marker = "// keep v1 in prose, it is not a version site\n"
         path = self.pkg / "static" / ("%s_v1.js" % self.name)
@@ -368,6 +379,117 @@ class Bump(Scaffolded):
         dq("bump", str(self.pkg), "--apply")
         again = dq("bump", str(self.pkg), "--apply")
         self.assertEqual(3, again.returncode, again.stdout + again.stderr)
+
+
+class Bundle(ScaffoldBase):
+    """The chat-runtime delivery path: a zip the user can actually act on."""
+
+    def zip_names(self, path):
+        import zipfile
+        with zipfile.ZipFile(path) as archive:
+            return archive.namelist()
+
+    def test_bundle_mirrors_the_server_layout(self):
+        out = self.tmp / "dist"
+        result = dq("bundle", str(self.pkg), "--out", str(out), "--apply")
+        self.assertEqual(0, result.returncode, result.stderr)
+        target = out / ("%s_v1.zip" % self.name)
+        self.assertTrue(target.is_file())
+        names = self.zip_names(target)
+        self.assertIn("UPLOAD.md", names)
+        self.assertIn("lib/%s/v1/meta.xml" % self.name, names)
+
+    def test_upload_instructions_name_the_destination(self):
+        import zipfile
+        out = self.tmp / "dist"
+        dq("bundle", str(self.pkg), "--out", str(out), "--apply")
+        with zipfile.ZipFile(out / ("%s_v1.zip" % self.name)) as archive:
+            text = archive.read("UPLOAD.md").decode("utf-8")
+        self.assertIn("lib/%s/v1/" % self.name, text)
+        self.assertIn("/lib/%s/v1/" % self.name, text,
+                      "UPLOAD.md must give the absolute server path")
+        self.assertIn("uids.bin", text,
+                      "UPLOAD.md must say which server-owned files not to upload")
+
+    def test_bundle_refuses_a_package_with_errors(self):
+        self.edit("styles.xml", "<stylevar", "<bogus", count=1)
+        out = self.tmp / "dist"
+        result = dq("bundle", str(self.pkg), "--out", str(out), "--apply")
+        self.assertEqual(FAILED, result.returncode,
+                         "a red gate must block the download")
+        self.assertFalse((out / ("%s_v1.zip" % self.name)).exists())
+
+    def test_force_overrides_but_says_so(self):
+        self.edit("styles.xml", "<stylevar", "<bogus", count=1)
+        out = self.tmp / "dist"
+        result = dq("bundle", str(self.pkg), "--out", str(out), "--apply", "--force")
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertIn("--force", result.stdout)
+
+    def test_survey_file_gets_its_own_destination(self):
+        import zipfile
+        survey = self.tmp / "990123" / "survey.xml"
+        survey.parent.mkdir(parents=True)
+        survey.write_text("<survey/>\n")
+        out = self.tmp / "dist"
+        result = dq("bundle", str(self.pkg), "--out", str(out), "--apply",
+                    "--survey-file", str(survey), "--survey", "990123")
+        self.assertEqual(0, result.returncode, result.stderr)
+        with zipfile.ZipFile(out / ("%s_v1.zip" % self.name)) as archive:
+            names = archive.namelist()
+            text = archive.read("UPLOAD.md").decode("utf-8")
+        self.assertIn("surveys/990123/survey.xml", names)
+        self.assertIn("/990123/survey.xml", text)
+
+
+class ClaudeZip(unittest.TestCase):
+    """claude.ai rejects a zip whose SKILL.md is not inside a folder."""
+
+    def test_archive_nests_the_skill_folder(self):
+        import zipfile
+        result = subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / "build_claude_zip.py")],
+            capture_output=True, text=True, cwd=str(ROOT))
+        self.assertEqual(0, result.returncode, result.stderr)
+        target = ROOT / "dist" / ("%s.zip" % ROOT.name)
+        self.assertTrue(target.is_file())
+        with zipfile.ZipFile(target) as archive:
+            names = archive.namelist()
+        self.assertIn("%s/SKILL.md" % ROOT.name, names)
+        self.assertEqual([], [n for n in names if "/" not in n],
+                         "no entry may sit at the archive root")
+
+    def test_personal_config_is_never_packaged(self):
+        import zipfile
+        local = ROOT / "config.local.json"
+        created = not local.is_file()
+        if created:
+            local.write_text('{"host": "secret.internal.example"}\n')
+        try:
+            subprocess.run(
+                [sys.executable, str(ROOT / "scripts" / "build_claude_zip.py")],
+                capture_output=True, text=True, cwd=str(ROOT))
+            with zipfile.ZipFile(ROOT / "dist" / ("%s.zip" % ROOT.name)) as archive:
+                names = archive.namelist()
+        finally:
+            if created:
+                local.unlink()
+        self.assertEqual(
+            [], [n for n in names if n.endswith("/config.local.json")],
+            "config.local.json holds one team's host and must not be shipped")
+
+    def test_frontmatter_fits_the_documented_limits(self):
+        import re
+        block = (ROOT / "SKILL.md").read_text().split("---", 2)[1]
+        name = re.search(r"^name:\s*(.+)$", block, re.M).group(1).strip()
+        desc = re.search(r"^description:\s*(.+)$", block, re.M).group(1).strip()
+        self.assertRegex(name, r"^[a-z0-9-]{1,64}$")
+        self.assertNotIn("claude", name)
+        self.assertNotIn("anthropic", name)
+        self.assertEqual(ROOT.name, name,
+                         "claude.ai takes the skill name from the folder")
+        self.assertLessEqual(len(desc), 200, "claude.ai description limit")
+        self.assertNotIn("<", desc)
 
 
 class Guards(unittest.TestCase):
