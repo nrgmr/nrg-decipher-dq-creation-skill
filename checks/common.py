@@ -29,11 +29,18 @@ def config():
     """The environment values, from config.json at the skill root.
 
     Nothing in this skill hardcodes a company code, a host or a server root.
-    A client edits config.json once and every path, URL and guard follows.
+    Set them once and every path, URL and guard follows.
+
+    config.local.json is read last and wins. It is gitignored, so a value that
+    should not be published -- an internal hostname, a company code -- stays out
+    of the repository and out of everyone else's working tree.
     """
     values = dict(CONFIG_DEFAULTS)
-    path = Path(__file__).resolve().parent.parent / "config.json"
-    if path.is_file():
+    root = Path(__file__).resolve().parent.parent
+    for name in ("config.json", "config.local.json"):
+        path = root / name
+        if not path.is_file():
+            continue
         loaded = json.loads(path.read_text(encoding="utf-8"))
         values.update({k: v for k, v in loaded.items()
                        if k in CONFIG_DEFAULTS})

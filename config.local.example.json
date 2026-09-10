@@ -1,0 +1,16 @@
+{
+  "_how": [
+    "Copy to config.local.json and set the values for your environment.",
+    "config.local.json is gitignored and overrides config.json key by key, so",
+    "you only need the keys you are actually changing. Nothing you put here is",
+    "published, and your working tree stays clean.",
+    "",
+    "Unknown keys are ignored. The recognised set is exactly the five below."
+  ],
+
+  "host": "surveys.example.com",
+  "server_root": "/home/hermes/v2/selfserve",
+  "test_company": "55c",
+  "forbidden_companies": ["53b"],
+  "local_root": "test_environment"
+}

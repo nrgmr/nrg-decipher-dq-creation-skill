@@ -146,20 +146,15 @@ claim to defend.
 
 ## Configuration
 
-**One file, edited once.** Nothing in this skill hardcodes a hostname, a company code or
-a server path.
+**One file, set once.** Nothing in this skill hardcodes a hostname, a company code or a
+server path.
 
-`config.json`:
-
-```json
-{
-  "host": "<your-decipher-host>",
-  "server_root": "/home/hermes/v2/selfserve",
-  "test_company": "55c",
-  "forbidden_companies": ["53b"],
-  "local_root": "test_environment"
-}
+```bash
+cp config.local.example.json config.local.json
+# then edit config.local.json
 ```
+
+Five keys, and you only need the ones you are changing:
 
 | Key | Meaning |
 |---|---|
@@ -169,10 +164,17 @@ a server path.
 | `forbidden_companies` | Company codes that are refused outright, production first among them |
 | `local_root` | Where packages and surveys live in your working tree |
 
-Both the tooling and the checks read this file. `forbidden_companies` is a hard refusal,
-not a warning: a path naming one of those codes exits `3` and no work is done. Leaving
-`host` at its placeholder is safe — the agent is instructed to ask for the value rather
-than invent one, because a guessed hostname costs a round trip through a person.
+`config.json` holds the committed defaults. `config.local.json` is read after it and
+wins key by key, and it is **gitignored** — so an internal hostname stays out of the
+repository, your working tree stays clean, and a `git pull` never conflicts with your
+environment. Editing `config.json` directly also works, at the cost of a permanently
+modified tracked file.
+
+Both the tooling and the 37 checks read the merged result. `forbidden_companies` is a
+hard refusal rather than a warning: a path naming one of those codes exits `3` and no
+work is done. Leaving `host` at its placeholder is safe — the agent is instructed to ask
+for the value rather than invent one, because a guessed hostname costs a round trip
+through a person.
 
 ## Quick start
 
@@ -660,7 +662,8 @@ Two assertions come out of this, and they are the ones that matter:
 decipher-dq/
 ├── SKILL.md                     the router: invariants, the six-step loop,
 │                                routing table, version discipline
-├── config.json                  your environment. Edit once
+├── config.json                  committed defaults
+├── config.local.json            your environment, gitignored (from .example)
 ├── README.md
 │
 ├── reference/                   nine chapters, consulted by topic

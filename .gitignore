@@ -1,3 +1,7 @@
+# Your environment. Overrides config.json, and stays out of the repository so an
+# internal hostname or company code is never published.
+config.local.json
+
 # Calibration against a client's own library. The file describes their packages,
 # not this skill, so it never belongs in the repository.
 tests/corpus_expectations.json
