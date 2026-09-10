@@ -4,9 +4,11 @@
 
 **From a sentence to an upload-ready Forsta Decipher Dynamic Question.**
 
-A Claude Code skill that turns *"build me a question that behaves like a video feed"*
-into a complete, verified DQ package — with a boilerplate survey that doubles as the
-Survey Designer's manual.
+A skill for **Claude Code and the Claude app** that turns *"build me a question that
+behaves like a video feed"* into a complete, verified DQ package — with a boilerplate
+survey that doubles as the Survey Designer's manual.
+
+**[Set up in five minutes ↓](#set-up)**
 
 `37 local checks` · `5 archetypes` · `7 commands` · `9 reference chapters` · `zero dependencies`
 
@@ -16,12 +18,11 @@ Survey Designer's manual.
 
 ## Contents
 
+- [Set up](#set-up)
+- [Without a terminal: what the conversation looks like](#without-a-terminal-what-the-conversation-looks-like)
 - [What this is](#what-this-is)
 - [Why it exists](#why-it-exists)
-- [Installation](#installation)
-- [Configuration](#configuration)
-- [Quick start](#quick-start)
-- [Without a terminal: what the conversation looks like](#without-a-terminal-what-the-conversation-looks-like)
+- [The developer workflow](#the-developer-workflow)
 - [The loop](#the-loop)
 - [What a scaffold contains](#what-a-scaffold-contains)
 - [Archetypes](#archetypes)
@@ -30,11 +31,204 @@ Survey Designer's manual.
 - [Versioning](#versioning)
 - [The human boundary](#the-human-boundary)
 - [Safety invariants](#safety-invariants)
+- [Configuration reference](#configuration-reference)
 - [Reference library](#reference-library)
 - [Calibrating against your own library](#calibrating-against-your-own-library)
 - [Repository layout](#repository-layout)
 - [Development](#development)
 - [Limits](#limits)
+
+---
+
+## Set up
+
+Two paths. Pick by whether you work in a terminal. **Skills do not sync between
+them** — install in each place you want to use it.
+
+| | **A. Claude app / claude.ai** | **B. Claude Code** |
+|---|---|---|
+| **For** | Survey Designers, project managers, anyone who would rather not open a terminal | Developers |
+| **Setup** | Upload one `.zip` in settings | Clone one folder |
+| **You need** | Pro, Max, Team or Enterprise, with code execution on | Python 3.10 or newer |
+| **Your survey files** | You attach them to the chat | Read straight from disk |
+| **What you get back** | A `.zip` to download, with `UPLOAD.md` inside | Files written into your project |
+
+---
+
+### A. Claude app or claude.ai — no terminal
+
+**1. Get `decipher-dq.zip`.** Ask whoever set this up for the file, or build it:
+
+```bash
+python3 scripts/build_claude_zip.py     # writes dist/decipher-dq.zip
+```
+
+**2. Turn on code execution.** **Settings → Capabilities → code execution.** Nothing
+works without it: the skill runs Python to verify what it builds.
+
+**3. Add the skill.** **Settings → Capabilities → Skills**, press **+**, then
+**Create skill**, and choose the zip.
+
+**4. Start a new chat** and say what you want in plain language:
+
+> *Create a Dynamic Question that shows nine product images and asks the respondent
+> to pick their top three, in order.*
+
+That is the whole setup. The skill loads itself, interviews you before writing
+anything, and finishes by giving you a `.zip` to download. See
+[what the conversation looks like](#without-a-terminal-what-the-conversation-looks-like).
+
+---
+
+### B. Claude Code — for developers
+
+**1. Clone it.** The target directory must be named `decipher-dq`: the skill name
+comes from the folder, not the repository, and the two differ here.
+
+```bash
+# personal — available in every project
+git clone https://github.com/lyle-nrg/nrg-decipher-dq-creation-skill.git \
+  ~/.claude/skills/decipher-dq
+
+# or per project — checked in and shared with the team
+git clone https://github.com/lyle-nrg/nrg-decipher-dq-creation-skill.git \
+  .claude/skills/decipher-dq
+```
+
+**2. Confirm it works.**
+
+```bash
+cd ~/.claude/skills/decipher-dq
+python3 scripts/dq.py --help
+python3 tests/test_verify.py        # 55 tests, about 3 seconds
+```
+
+**3. Ask for a DQ** in natural language — *"create a DQ that works like an image
+gallery"* — and the skill loads itself. Or drive the tooling directly; see
+[the developer workflow](#the-developer-workflow).
+
+---
+
+### Set your environment, once
+
+One file, and only the keys you are changing:
+
+```bash
+cp config.local.example.json config.local.json
+```
+
+For most teams that means a single value, `host`. `config.local.json` is gitignored,
+so an internal hostname never reaches the repository and `git pull` never conflicts
+with it. Full key list: [Configuration reference](#configuration-reference).
+
+Leaving `host` unset is safe. The skill asks for it once when it first needs a URL
+and refuses to guess, because a guessed hostname costs a round trip through a person.
+
+---
+
+### Worth knowing before you hand this to a team
+
+- **Per person on claude.ai.** Each teammate uploads the zip themselves. Team and
+  Enterprise administrators can instead publish it organisation-wide through
+  organisation settings, which distributes it once for everyone.
+- **Updating.** In Claude Code, `git pull` and re-run the tests — the suite *is* the
+  upgrade check. In the Claude app, rebuild the zip and upload it again; there is no
+  in-place update.
+- **On WSL, clone into your Linux home directory,** not under `/mnt/c`. That mount
+  refuses `chmod`, so `git init` fails outright there, and file access is several
+  times slower.
+
+> [!IMPORTANT]
+> Keep this repository on its own. Do **not** run `git init` in a directory that also
+> holds survey exports, respondent files or client packages. A Decipher survey
+> directory contains client content and respondent data, and publishing it is not
+> recoverable. The bundled `.gitignore` refuses the obvious cases; directory
+> discipline covers the rest.
+
+---
+
+## Without a terminal: what the conversation looks like
+
+The whole flow in the Claude app, for someone who will never run a command. Nothing
+below is typed into a shell.
+
+**You:**
+
+> Create a Dynamic Question that shows nine product images in a grid and asks the
+> respondent to pick their top three, in order.
+
+**Claude** loads the skill and asks the questions the archetype says must be answered
+first — because a request like that leaves the decisions that matter open:
+
+> Before I build anything, five things:
+>
+> 1. Nine images always, or does it vary by respondent?
+> 2. Must all three picks be made before continuing, or may they pick fewer?
+> 3. Do you need the **order** of the three picks recorded, or only which three?
+> 4. Should the images be the same for everyone, or rotated?
+> 5. Which devices — phone only, or desktop too?
+
+You answer in plain language. It writes the specification, scaffolds the package,
+builds the logic, and runs its own 37 checks until they are clean. Then:
+
+> Done, and `verify` is clean. Two things I need from you:
+>
+> **1.** Attach the `survey.xml` of the survey this question will live in, and tell me
+> its numeric survey ID. I cannot see your Decipher server, so I will not guess either.
+>
+> **2.** Here is the package: **`product_grid_v1.zip`** *(download)*
+>
+> Open `UPLOAD.md` inside it. It tells you which folder goes where, with checksums to
+> compare after uploading.
+
+Inside that zip:
+
+```
+product_grid_v1.zip
+├── UPLOAD.md                          ← read this first
+└── lib/
+    └── product_grid/
+        └── v1/                        ← upload this whole folder
+            ├── meta.xml
+            ├── styles.xml
+            ├── survey.xml             ← the demo, and your instructions
+            ├── IMPORT.md              ← how to add it to a survey
+            ├── spec.json
+            ├── capture_block.xml
+            ├── CHANGELOG.txt
+            └── static/
+```
+
+And `UPLOAD.md` reads:
+
+```markdown
+# Where these files go
+
+This archive mirrors the server. Upload each folder to the matching path, as a
+whole folder rather than file by file.
+
+## 1. The Dynamic Question package
+
+    from this archive   lib/product_grid/v1/
+    to the server       /home/hermes/v2/selfserve/55c/lib/product_grid/v1/
+
+## Do not
+
+- Do not create a `lib` directory under any company other than `55c`.
+- Do not upload `uids.bin`, `original.bin`, any `.pickle` or any `.log`. Those
+  belong to the server. This archive does not contain them.
+- Do not rename anything. The version number is part of how a survey finds this
+  package.
+```
+
+Three properties of this flow are deliberate:
+
+- **The instructions outlive the conversation.** `UPLOAD.md` is in the zip. A chat scrolls
+  away; a file in a folder does not.
+- **A red gate blocks the download.** `bundle` refuses to produce a zip while any check
+  is failing, so a broken package cannot quietly become an upload.
+- **Nothing is invented.** No survey ID, company code or hostname is guessed. If the
+  skill does not have one, it asks, once, and says why.
 
 ---
 
@@ -66,6 +260,8 @@ otherwise has to improvise:
 | **37 executable checks** | Platform traps encoded as checks that fail the build, rather than as prose nobody rereads |
 | **Engineered handoffs** | Exact, single-action requests for the things only a human can do, each naming the artifact it needs back |
 
+---
+
 ## Why it exists
 
 A DQ package is unusually easy to get almost right. It compiles. The screen looks
@@ -91,157 +287,12 @@ Each of those has a check in this repository. That is the design premise: **a pl
 behaviour written down is a behaviour that will be forgotten; a platform behaviour with
 a check is a behaviour that cannot ship broken.**
 
-## Installation
-
-Two ways to use this, for two audiences. Pick by whether you work in a terminal.
-
-| | **Claude app or claude.ai** | **Claude Code** |
-|---|---|---|
-| **Who** | Survey Designers, project managers, anyone who does not want a terminal | Developers |
-| **Install** | Upload one `.zip` in settings | Clone a folder |
-| **Your survey files** | You attach them to the chat | Read from disk directly |
-| **What you get back** | A `.zip` to download, with `UPLOAD.md` inside | Files written into your project |
-| **Needs** | Pro, Max, Team or Enterprise, with code execution on | Python 3.10+ |
-
-Skills do **not** sync between the two. Install in each place you want to use it.
-
 ---
 
-### A. Claude app or claude.ai — no terminal required
+## The developer workflow
 
-Ask whoever set this up for the `decipher-dq.zip` file, or build it yourself with
-one command:
-
-```bash
-python3 scripts/build_claude_zip.py     # writes dist/decipher-dq.zip
-```
-
-Then, in Claude:
-
-1. **Settings → Capabilities**, and turn on **code execution**. Nothing works without
-   it, because the skill runs Python to verify what it builds.
-2. **Settings → Capabilities → Skills**, press **+**, then **Create skill**.
-3. Choose `decipher-dq.zip`. It appears in your skills list.
-4. Start a new chat and describe what you want in plain language:
-   > *Create a Dynamic Question that behaves like an image gallery, where the
-   > respondent picks three pictures out of nine.*
-
-The skill loads itself and interviews you before it writes anything. When it finishes
-you get a **`.zip` to download** containing a folder tree that mirrors the server, and
-an `UPLOAD.md` that names the destination of every folder, lists the file checksums,
-and says which files must never be uploaded.
-
-> [!NOTE]
-> Custom skills on claude.ai are per person: each teammate uploads the zip themselves.
-> Team and Enterprise administrators can instead publish it organisation-wide through
-> organisation settings, which distributes it once for everyone.
-
-**One thing to know.** Claude cannot see your Decipher server or your survey files.
-When it needs one, it will ask you to attach it — typically the `survey.xml` of the
-survey the question will go into. Attach the file and give it the numeric survey ID.
-It will not invent either.
-
----
-
-### B. Claude Code — for developers
-
-The skill is a plain directory of Markdown, Python and XML, with **no dependencies**
-beyond Python 3.10 or newer.
-
-The clone target must be named `decipher-dq`. The skill name comes from the directory,
-not from the repository, and the two differ here.
-
-**Personal — available in every project:**
-
-```bash
-git clone https://github.com/lyle-nrg/nrg-decipher-dq-creation-skill.git \
-  ~/.claude/skills/decipher-dq
-```
-
-**Project — checked in and shared with the team:**
-
-```bash
-git clone https://github.com/lyle-nrg/nrg-decipher-dq-creation-skill.git \
-  .claude/skills/decipher-dq
-```
-
-Or as a submodule, to keep it updatable inside an existing repository:
-
-```bash
-git submodule add https://github.com/lyle-nrg/nrg-decipher-dq-creation-skill.git \
-  .claude/skills/decipher-dq
-```
-
-Confirm it works:
-
-```bash
-cd ~/.claude/skills/decipher-dq
-python3 scripts/dq.py --help
-python3 tests/test_verify.py        # 55 tests, about 3 seconds
-```
-
-Then ask for a DQ in natural language — *"create a DQ that works like an image
-gallery"* — and the skill loads itself.
-
-> [!TIP]
-> On WSL, clone into your Linux home directory rather than anywhere under `/mnt/c`.
-> That mount refuses `chmod`, so `git init` fails there outright, and file access is
-> several times slower.
-
-> [!IMPORTANT]
-> Install this repository on its own. Do **not** run `git init` in a directory that also
-> holds survey exports, respondent files or client packages. A Decipher survey directory
-> contains client content and respondent data, and publishing it is not recoverable. The
-> bundled `.gitignore` refuses the obvious cases; directory discipline covers the rest.
-
-### Updating
-
-**Claude Code:**
-
-```bash
-cd ~/.claude/skills/decipher-dq && git pull
-python3 tests/test_verify.py
-```
-
-**Claude app:** rebuild the zip and upload it again, replacing the old skill. There is
-no in-place update.
-
-The test suite is the upgrade check. If it passes, the checks still defend what they
-claim to defend.
-
-## Configuration
-
-**One file, set once.** Nothing in this skill hardcodes a hostname, a company code or a
-server path.
-
-```bash
-cp config.local.example.json config.local.json
-# then edit config.local.json
-```
-
-Five keys, and you only need the ones you are changing:
-
-| Key | Meaning |
-|---|---|
-| `host` | Your Decipher hostname. Used only to render respondent URLs in handoff requests |
-| `server_root` | The path above the company directories on the survey server |
-| `test_company` | The company code this skill is allowed to target |
-| `forbidden_companies` | Company codes that are refused outright, production first among them |
-| `local_root` | Where packages and surveys live in your working tree |
-
-`config.json` holds the committed defaults. `config.local.json` is read after it and
-wins key by key, and it is **gitignored** — so an internal hostname stays out of the
-repository, your working tree stays clean, and a `git pull` never conflicts with your
-environment. Editing `config.json` directly also works, at the cost of a permanently
-modified tracked file.
-
-Both the tooling and the 37 checks read the merged result. `forbidden_companies` is a
-hard refusal rather than a warning: a path naming one of those codes exits `3` and no
-work is done. Leaving `host` at its placeholder is safe — the agent is instructed to ask
-for the value rather than invent one, because a guessed hostname costs a round trip
-through a person.
-
-## Quick start
+Driving the tooling by hand, end to end. In a conversation the skill does this for
+you; this is what it is doing.
 
 **1. Run the interview.** The archetype supplies the questions, so they are the same
 every time and nothing important is skipped.
@@ -336,88 +387,7 @@ Send back: confirmation, or any error text verbatim.
     survey.xml                           3862  8ecfaad7e3b8c685
 ```
 
-## Without a terminal: what the conversation looks like
-
-The whole flow in the Claude app, for someone who will never run a command. Nothing
-below is typed into a shell.
-
-**You:**
-
-> Create a Dynamic Question that shows nine product images in a grid and asks the
-> respondent to pick their top three, in order.
-
-**Claude** loads the skill and asks the questions the archetype says must be answered
-first — because a request like that leaves the decisions that matter open:
-
-> Before I build anything, five things:
->
-> 1. Nine images always, or does it vary by respondent?
-> 2. Must all three picks be made before continuing, or may they pick fewer?
-> 3. Do you need the **order** of the three picks recorded, or only which three?
-> 4. Should the images be the same for everyone, or rotated?
-> 5. Which devices — phone only, or desktop too?
-
-You answer in plain language. It writes the specification, scaffolds the package,
-builds the logic, and runs its own 37 checks until they are clean. Then:
-
-> Done, and `verify` is clean. Two things I need from you:
->
-> **1.** Attach the `survey.xml` of the survey this question will live in, and tell me
-> its numeric survey ID. I cannot see your Decipher server, so I will not guess either.
->
-> **2.** Here is the package: **`product_grid_v1.zip`** *(download)*
->
-> Open `UPLOAD.md` inside it. It tells you which folder goes where, with checksums to
-> compare after uploading.
-
-Inside that zip:
-
-```
-product_grid_v1.zip
-├── UPLOAD.md                          ← read this first
-└── lib/
-    └── product_grid/
-        └── v1/                        ← upload this whole folder
-            ├── meta.xml
-            ├── styles.xml
-            ├── survey.xml             ← the demo, and your instructions
-            ├── IMPORT.md              ← how to add it to a survey
-            ├── spec.json
-            ├── capture_block.xml
-            ├── CHANGELOG.txt
-            └── static/
-```
-
-And `UPLOAD.md` reads:
-
-```markdown
-# Where these files go
-
-This archive mirrors the server. Upload each folder to the matching path, as a
-whole folder rather than file by file.
-
-## 1. The Dynamic Question package
-
-    from this archive   lib/product_grid/v1/
-    to the server       /home/hermes/v2/selfserve/55c/lib/product_grid/v1/
-
-## Do not
-
-- Do not create a `lib` directory under any company other than `55c`.
-- Do not upload `uids.bin`, `original.bin`, any `.pickle` or any `.log`. Those
-  belong to the server. This archive does not contain them.
-- Do not rename anything. The version number is part of how a survey finds this
-  package.
-```
-
-Three properties of this flow are deliberate:
-
-- **The instructions outlive the conversation.** `UPLOAD.md` is in the zip. A chat scrolls
-  away; a file in a folder does not.
-- **A red gate blocks the download.** `bundle` refuses to produce a zip while any check
-  is failing, so a broken package cannot quietly become an upload.
-- **Nothing is invented.** No survey ID, company code or hostname is guessed. If the
-  skill does not have one, it asks, once, and says why.
+---
 
 ## The loop
 
@@ -474,6 +444,8 @@ python3 scripts/dq.py <command> --help
 Exit codes: `0` clean · `1` usage error · `2` verification failed · `3` refused on a
 safety invariant.
 
+---
+
 ## What a scaffold contains
 
 Completeness is the point. A scaffold whose demo cannot capture data defers the riskiest
@@ -523,6 +495,8 @@ Generated files carry a do-not-edit header and a content hash, and `verify` fail
 either drifts from its source. What a designer copies is therefore byte-identical to
 what was compiled and tested — drift becomes impossible rather than merely detectable.
 
+---
+
 ## Archetypes
 
 An archetype is not a code generator. It is the set of decisions a shape of DQ forces,
@@ -550,6 +524,8 @@ inherits, then apply this archetype's questions and capture shape by hand.
 ```
 
 Adding a full template for an archetype is the natural first contribution.
+
+---
 
 ## Verification
 
@@ -616,6 +592,8 @@ over-read:
 remembered. Its value is narrow and real: it stops you spending a human round trip on
 something a regex could have told you.
 
+---
+
 ## The designer surface
 
 The acceptance test the whole parameter surface is designed against:
@@ -660,6 +638,8 @@ improves. `spec.json`'s three-way classification is what makes the distinction
 expressible at all, since Decipher's own `<stylevar>` vocabulary has no notion of
 "required" or "internal".
 
+---
+
 ## Versioning
 
 A version is a **completed, verified increment**, not a save point. Iterate freely
@@ -686,6 +666,8 @@ its own declarations, and `verify` fails if it drifts from the demo. At runtime,
 startup handshake checks labels, row counts and writability, which is what actually
 catches a stale block: if the declarations changed, the shape differs and the handshake
 says so. There is nothing to remember to increment.
+
+---
 
 ## The human boundary
 
@@ -725,6 +707,8 @@ Seven rules are baked into the templates, each answering a specific way a reques
 
 Templates and rationale: [`reference/07-handoff.md`](reference/07-handoff.md).
 
+---
+
 ## Safety invariants
 
 Enforced in code, not left to attention. A violation exits `3` and no work is done.
@@ -739,6 +723,35 @@ Enforced in code, not left to attention. A violation exits `3` and no work is do
 | Server-owned files stay on the server | `forbidden_files` fails on `uids.bin`, pickles and logs inside an upload unit |
 | No code execution over designer input | `unsafe_evaluation` fails on `eval` and `new Function` |
 | Untouched server evidence stays untouched | Directories holding downloaded survey material are never edited |
+
+---
+
+## Configuration reference
+
+Nothing in this skill hardcodes a hostname, a company code or a server path. Setting
+them is one step, covered under [Set up](#set-up); this is the full key list.
+
+All five keys, of which you only need the ones you are changing:
+
+| Key | Meaning |
+|---|---|
+| `host` | Your Decipher hostname. Used only to render respondent URLs in handoff requests |
+| `server_root` | The path above the company directories on the survey server |
+| `test_company` | The company code this skill is allowed to target |
+| `forbidden_companies` | Company codes that are refused outright, production first among them |
+| `local_root` | Where packages and surveys live in your working tree |
+
+`config.json` holds the committed defaults. `config.local.json` is read after it and
+wins key by key, and it is **gitignored** — so an internal hostname stays out of the
+repository, your working tree stays clean, and a `git pull` never conflicts with your
+environment. Editing `config.json` directly also works, at the cost of a permanently
+modified tracked file.
+
+Both the tooling and the 37 checks read the merged result. `forbidden_companies` is a
+hard refusal rather than a warning: a path naming one of those codes exits `3` and no
+work is done.
+
+---
 
 ## Reference library
 
@@ -770,6 +783,8 @@ inference:
 
 A finding with no check is a finding that will recur. That is the standard the register
 is held to.
+
+---
 
 ## Calibrating against your own library
 
@@ -804,6 +819,8 @@ Two assertions come out of this, and they are the ones that matter:
   know is there, the check is wrong — not the library.
 
 `corpus_expectations.json` is gitignored. It describes your packages, not this skill.
+
+---
 
 ## Repository layout
 
@@ -845,6 +862,8 @@ decipher-dq/
 Roughly 4,600 lines, of which about 1,100 are reference prose and about 1,700 are
 checks. There is nothing to install and nothing to build.
 
+---
+
 ## Development
 
 ```bash
@@ -879,6 +898,8 @@ A check with no test is not finished. A suite that passes everything proves noth
 2. Optionally `template/` — but only once its code has been compiled and run through a
    respondent. Until then, declare the archetype interview-only and let `dq.py new`
    redirect to `basic`. Untested confident output is worse than an honest redirect.
+
+---
 
 ## Limits
 
