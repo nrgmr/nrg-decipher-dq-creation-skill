@@ -1,0 +1,47 @@
+{
+  "archetype": "ranking",
+  "summary": "Drag-to-order or click-to-rank. The respondent arranges items rather than choosing among them.",
+  "use_when": [
+    "the request says rank, order, prioritise or drag",
+    "the output is a sequence rather than a selection"
+  ],
+  "inherits_structure_from": "basic",
+  "status": "interview-only",
+  "warnings": [
+    "Interview only in this release. Scaffold from `basic`, then apply this archetype's questions and capture shape by hand; `basic` is the reference structure and every archetype inherits it."
+  ],
+  "questions": [
+    {
+      "ask": "Must every item be ranked, or may some be left out?",
+      "why": "A partial ranking needs an explicit unranked sentinel in the data, decided now rather than inferred later from blanks.",
+      "affects": [
+        "capture empty behaviour",
+        "validation"
+      ]
+    },
+    {
+      "ask": "Drag, or click-to-assign?",
+      "why": "Drag needs touch support and a keyboard-accessible alternative; click-to-assign needs neither and is materially cheaper.",
+      "affects": [
+        "the interaction model",
+        "the accessibility requirement",
+        "the device handoff"
+      ]
+    },
+    {
+      "ask": "Is the rank recorded per item, or the item recorded per rank?",
+      "why": "They export differently and analysts assume one. Choosing wrong means re-processing every dataset.",
+      "affects": [
+        "capture shape"
+      ]
+    },
+    {
+      "ask": "Does a partially completed ranking need to survive a refresh?",
+      "why": "State kept only in memory is lost on refresh; persistence has to go through real capture variables.",
+      "affects": [
+        "capture fields",
+        "resume handling"
+      ]
+    }
+  ]
+}

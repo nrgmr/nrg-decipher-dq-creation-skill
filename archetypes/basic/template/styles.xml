@@ -1,0 +1,38 @@
+<styles>
+<stylevar name="__DQ_NAME__:accent" type="color" title="Accent Colour" desc="Colour of the selected card border and its check mark.">#2bbdb9</stylevar>
+<stylevar name="__DQ_NAME__:density" type="enum" values="comfortable,compact" title="Card Density" desc="comfortable gives each card more padding; compact fits more on a phone screen without scrolling.">comfortable</stylevar>
+<stylevar name="__DQ_NAME__:capture_order" type="string" title="Capture: Touch Order" desc="Name of the survey variable that records the order rows were touched. Must match the pasted capture block; do not change by hand.">__DQ_UPPER___ORDER</stylevar>
+
+<include href="__DQ_NAME___v__VERSION__.css"/>
+<include href="__DQ_NAME___v__VERSION__.js"/>
+
+<style name="question.after"><![CDATA[
+<style type="text/css">
+#question_${this.label} .__HOST_CLASS__ {
+    --accent: ${this.styles.__DQ_NAME__.accent or '#2bbdb9'};
+}
+#question_${this.styles.__DQ_NAME__.capture_order or '__DQ_UPPER___ORDER'} {
+    display: none !important;
+}
+</style>
+
+<div class="__HOST_CLASS__" data-question-label="${this.label}"
+     data-density="${this.styles.__DQ_NAME__.density or 'comfortable'}"></div>
+
+<script type="text/javascript">
+(function () {
+    var params = {
+        questionLabel:  "${this.label}",
+        version:        "__VERSION__",
+        captureOrder:   "${this.styles.__DQ_NAME__.capture_order or '__DQ_UPPER___ORDER'}"
+    };
+    window.__JS_NAMESPACE___BOOT = window.__JS_NAMESPACE___BOOT || [];
+    window.__JS_NAMESPACE___BOOT.push({
+        params: params,
+        jsexport: ${jsexport()},
+        isQa: ${1 if gv.debug.qa else 0} === 1
+    });
+}());
+</script>
+]]></style>
+</styles>

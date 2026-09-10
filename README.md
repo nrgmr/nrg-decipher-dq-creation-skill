@@ -1,0 +1,755 @@
+<div align="center">
+
+# `decipher-dq`
+
+**From a sentence to an upload-ready Forsta Decipher Dynamic Question.**
+
+A Claude Code skill that turns *"build me a question that behaves like a video feed"*
+into a complete, verified DQ package — with a boilerplate survey that doubles as the
+Survey Designer's manual.
+
+`37 local checks` · `5 archetypes` · `6 commands` · `9 reference chapters` · `zero dependencies`
+
+</div>
+
+---
+
+## Contents
+
+- [What this is](#what-this-is)
+- [Why it exists](#why-it-exists)
+- [Installation](#installation)
+- [Configuration](#configuration)
+- [Quick start](#quick-start)
+- [The loop](#the-loop)
+- [What a scaffold contains](#what-a-scaffold-contains)
+- [Archetypes](#archetypes)
+- [Verification](#verification)
+- [The designer surface](#the-designer-surface)
+- [Versioning](#versioning)
+- [The human boundary](#the-human-boundary)
+- [Safety invariants](#safety-invariants)
+- [Reference library](#reference-library)
+- [Calibrating against your own library](#calibrating-against-your-own-library)
+- [Repository layout](#repository-layout)
+- [Development](#development)
+- [Limits](#limits)
+
+---
+
+## What this is
+
+A **Dynamic Question** (DQ) in Forsta Decipher is a reusable question type: an XML
+style package stored centrally under `<server_root>/<company>/lib/<name>/vN/`, which
+any survey adopts with a single attribute.
+
+```xml
+<radio label="Q1" uses="choice_cards.1" choice_cards:accent="#2bbdb9">
+  <title>Which of these appeals to you most?</title>
+  <row label="r1">The first option</row>
+  <row label="r2">The second option</row>
+</radio>
+```
+
+That one line is the entire contract. Everything else — the markup, the styling, the
+interaction, the data capture — lives in the package, is written once, and is reused by
+every study that wants it.
+
+This skill is the workflow around building one. It gives an AI agent four things it
+otherwise has to improvise:
+
+| | |
+|---|---|
+| **A bounded interview** | Five archetypes, each carrying the questions that must be answered before any code is written, with the reason each one changes the design |
+| **A complete scaffold** | A package whose demo survey already captures data, already demonstrates two instances on one page, and already demonstrates its own failure path |
+| **37 executable checks** | Platform traps encoded as checks that fail the build, rather than as prose nobody rereads |
+| **Engineered handoffs** | Exact, single-action requests for the things only a human can do, each naming the artifact it needs back |
+
+## Why it exists
+
+A DQ package is unusually easy to get almost right. It compiles. The screen looks
+correct. The export is empty.
+
+The reasons are structural, and they repeat:
+
+- **The package is never compiled.** `lib/<name>/vN/` is not a survey. The demo survey
+  inside the package — the exact file every adopter copies from — gets no compiler
+  feedback at all. A namespaced attribute the package never declared will sit in that
+  demo indefinitely and fail for the first designer who copies it.
+- **A DQ cannot declare survey variables.** Data capture requires a block the designer
+  pastes into their own survey, on the same page, in the right order. Every part of that
+  sentence is a way to lose a study's data silently.
+- **The survey theme owns the page.** A DQ renders inside someone else's CSS and
+  someone else's jQuery. An unscoped selector on a class the theme already uses reaches
+  hundreds of elements that are not yours.
+- **The browser is the real gate.** Blocked autoplay, a swallowed promise rejection, a
+  cache-busting script loader, a selector engine extension that cannot delegate to
+  `querySelectorAll` — none of these are visible in any XML.
+
+Each of those has a check in this repository. That is the design premise: **a platform
+behaviour written down is a behaviour that will be forgotten; a platform behaviour with
+a check is a behaviour that cannot ship broken.**
+
+## Installation
+
+The skill is a plain directory of Markdown, Python and XML. It has **no dependencies**
+beyond Python 3.10 or newer, which is already present wherever Claude Code runs.
+
+### As a personal skill — available in every project
+
+```bash
+git clone https://github.com/<owner>/decipher-dq.git \
+  ~/.claude/skills/decipher-dq
+```
+
+### As a project skill — checked in and shared with the team
+
+```bash
+git clone https://github.com/<owner>/decipher-dq.git \
+  .claude/skills/decipher-dq
+```
+
+Or, to keep it updatable inside an existing repository:
+
+```bash
+git submodule add https://github.com/<owner>/decipher-dq.git \
+  .claude/skills/decipher-dq
+```
+
+### Verify the installation
+
+```bash
+cd ~/.claude/skills/decipher-dq
+python3 scripts/dq.py --help
+python3 tests/test_verify.py        # 86 tests, roughly 45 seconds
+```
+
+Claude Code discovers the skill from `SKILL.md` at the directory root. Ask for a DQ in
+natural language — *"create a DQ that works like an image gallery"* — and the skill
+loads itself.
+
+> [!IMPORTANT]
+> Install this repository on its own. Do **not** run `git init` in a directory that also
+> holds survey exports, respondent files or client packages. A Decipher survey directory
+> contains client content and respondent data, and publishing it is not recoverable. The
+> bundled `.gitignore` refuses the obvious cases; directory discipline covers the rest.
+
+### Updating
+
+```bash
+cd ~/.claude/skills/decipher-dq && git pull
+python3 tests/test_verify.py
+```
+
+The test suite is the upgrade check. If it passes, the checks still defend what they
+claim to defend.
+
+## Configuration
+
+**One file, edited once.** Nothing in this skill hardcodes a hostname, a company code or
+a server path.
+
+`config.json`:
+
+```json
+{
+  "host": "<your-decipher-host>",
+  "server_root": "/home/hermes/v2/selfserve",
+  "test_company": "55c",
+  "forbidden_companies": ["53b"],
+  "local_root": "test_environment"
+}
+```
+
+| Key | Meaning |
+|---|---|
+| `host` | Your Decipher hostname. Used only to render respondent URLs in handoff requests |
+| `server_root` | The path above the company directories on the survey server |
+| `test_company` | The company code this skill is allowed to target |
+| `forbidden_companies` | Company codes that are refused outright, production first among them |
+| `local_root` | Where packages and surveys live in your working tree |
+
+Both the tooling and the checks read this file. `forbidden_companies` is a hard refusal,
+not a warning: a path naming one of those codes exits `3` and no work is done. Leaving
+`host` at its placeholder is safe — the agent is instructed to ask for the value rather
+than invent one, because a guessed hostname costs a round trip through a person.
+
+## Quick start
+
+**1. Run the interview.** The archetype supplies the questions, so they are the same
+every time and nothing important is skipped.
+
+```bash
+python3 scripts/dq.py new --archetype media-player --questions
+```
+
+```
+Interview for archetype 'media-player'.
+Answer these before scaffolding; the answers become spec.json.
+
+1. One stimulus per question, or a feed of several? If a feed, how many, and is
+   the order fixed, rotated, or randomised?
+   why it matters: A feed needs a manifest in row text, a rotation rule, and
+   per-slot capture keyed to the item rather than the slot. A single stimulus
+   needs none of that. Building the feed machinery for a single stimulus is the
+   commonest overreach.
+   decides: the row-text grammar, capture row counts, whether a rotation rule
+   is needed
+
+2. Is sound required for the data to be valid?
+   why it matters: Browsers block unmuted autoplay without a user gesture, and a
+   swallowed rejection is a frozen frame that is invisible in the export. If
+   sound matters, the feed must open behind a tap-to-start gate.
+   decides: the start gate, capture fields, the compile handoff wording
+   ...
+```
+
+**2. Write `spec.json`** from the answers. This is the load-bearing document: every
+parameter is classified `public-required`, `public-optional` or `internal`, and every
+captured field is declared with its type and row count.
+
+**3. Scaffold.**
+
+```bash
+python3 scripts/dq.py new --archetype basic --spec spec.json \
+  --into test_environment/lib --apply
+```
+
+```
+created test_environment/lib/choice_cards/v1
+generated capture_block.xml, IMPORT.md
+
+Now run: python scripts/dq.py verify test_environment/lib/choice_cards/v1
+```
+
+**4. Build the logic,** consulting [`reference/`](#reference-library) by topic.
+
+**5. Verify, until clean.**
+
+```bash
+python3 scripts/dq.py verify test_environment/lib/choice_cards/v1
+```
+
+```
+verify test_environment/lib/choice_cards/v1  (choice_cards.1)
+
+0 error(s), 0 warning(s)
+
+PASS -- structural only. This does not execute the DQ and does not imply
+server acceptance.
+```
+
+**6. Hand off.** One action, exact paths, checksums, and the artifact needed back.
+
+```bash
+python3 scripts/dq.py handoff upload-package \
+  --package test_environment/lib/choice_cards/v1 --step "1 of 2"
+```
+
+```
+ACTION NEEDED (1 of 2)
+
+Upload as a whole directory, not file by file:
+    local   test_environment/lib/choice_cards/v1/
+    server  /home/hermes/v2/selfserve/55c/lib/choice_cards/v1/
+
+9 files, 22713 bytes. Checksums below -- compare after upload.
+Do not create a lib directory under 53b.
+
+Send back: confirmation, or any error text verbatim.
+
+    CHANGELOG.txt                        1750  456033e596bd107a
+    IMPORT.md                            2143  4c269c82a04cfac2
+    capture_block.xml                     627  633fcb184d2e430d
+    meta.xml                             1151  287b553dffaac10a
+    spec.json                            1378  542c51eb5859e307
+    static/choice_cards_v1.css           1772  9b8900a9e64b22e0
+    static/choice_cards_v1.js            8376  2c0ef2eb7b881fca
+    styles.xml                           1654  ae0213336fd0f281
+    survey.xml                           3862  8ecfaad7e3b8c685
+```
+
+## The loop
+
+Six steps. The first and the fourth are the ones that pay for themselves.
+
+```
+    ┌──────────────┐
+    │ 1. TRANSLATE │  archetype match + bounded interview  ──▶  spec.json
+    └──────┬───────┘
+           ▼
+    ┌──────────────┐
+    │ 2. SCAFFOLD  │  a package whose demo already captures data
+    └──────┬───────┘
+           ▼
+    ┌──────────────┐
+    │ 3. BUILD     │  the logic, with reference/ consulted by topic
+    └──────┬───────┘
+           ▼
+    ┌──────────────┐
+    │ 4. VERIFY    │  37 checks. Non-zero exit stops the loop  ◀─┐
+    └──────┬───────┘                                            │
+           ▼                                                    │
+    ┌──────────────┐                                            │
+    │ 5. HAND OFF  │  one exact human action, artifact named  ───┘
+    └──────┬───────┘     (server result may send you back)
+           ▼
+    ┌──────────────┐
+    │ 6. RECORD    │  CHANGELOG.txt: what is verified, what is not
+    └──────────────┘
+```
+
+Step 1 exists because a request like *"a DQ that looks like a YouTube player"* leaves
+every consequential decision open — what is captured, what a designer configures,
+whether sound is required for validity, whether the respondent can skip. Guessing those
+produces a package that has to be rebuilt. Step 4 exists because the alternative to a
+local check is a human round trip.
+
+### Commands
+
+```
+python3 scripts/dq.py <command> --help
+```
+
+| Command | Purpose |
+|---|---|
+| `new` | Run an archetype's interview, or scaffold a package from an archetype and a spec |
+| `verify` | Run every local check. The centre of gravity |
+| `extract` | Regenerate `capture_block.xml` and `IMPORT.md` from the fenced demo survey |
+| `bump` | Fork `vN` to `vN+1`, rewriting only anchored, enumerated version sites |
+| `handoff` | Emit one exact human action |
+| `scan` | Find which local surveys reference a DQ version, before changing it |
+
+Exit codes: `0` clean · `1` usage error · `2` verification failed · `3` refused on a
+safety invariant.
+
+## What a scaffold contains
+
+Completeness is the point. A scaffold whose demo cannot capture data defers the riskiest
+subsystem to the server, which is the most expensive place to discover it is wrong.
+
+```
+choice_cards/v1/
+├── meta.xml               scope, compat, count and rename contracts,
+│                          plus a functional Builder <template>
+├── styles.xml             classified stylevars, includes, the question
+│                          override, and the one place the version is emitted
+├── survey.xml             THE DEMO — fenced, and the single source of truth
+├── static/
+│   ├── choice_cards_v1.js   the runtime, instance-scoped, strict mode
+│   └── choice_cards_v1.css  scoped to the host class, no theme collisions
+├── spec.json              parameter classification + the capture contract
+├── capture_block.xml      GENERATED from survey.xml, with a content hash
+├── IMPORT.md              GENERATED from survey.xml — the designer's manual
+└── CHANGELOG.txt          what changed, why, and what is actually verified
+```
+
+The demo survey is not a sample. It is the artifact, and four things are in it from the
+first commit because each is a way a package fails on first contact with the server:
+
+1. **A capture field with its startup handshake** — so the data path is exercised before
+   anything is uploaded.
+2. **A two-instance question** — two of the same DQ on one page, which is how a
+   singleton global or a fixed element id is caught.
+3. **An invalid-configuration fixture** — so the failure path is demonstrable rather
+   than theoretical, and fails loudly rather than rendering something wrong.
+4. **Machine-readable fences** — every copyable region is delimited and labelled.
+
+```xml
+<!-- dq:requires survey-attr extraVariables contains record -->
+
+<!-- dq:block id="question" action="edit" title="The question you configure" -->
+  ...
+<!-- dq:endblock -->
+
+<!-- dq:block id="capture" action="copy-verbatim" title="Data capture. Never edit." -->
+  ...
+<!-- dq:endblock -->
+```
+
+`dq.py extract` generates `capture_block.xml` and `IMPORT.md` **from** those fences.
+Generated files carry a do-not-edit header and a content hash, and `verify` fails if
+either drifts from its source. What a designer copies is therefore byte-identical to
+what was compiled and tested — drift becomes impossible rather than merely detectable.
+
+## Archetypes
+
+An archetype is not a code generator. It is the set of decisions a shape of DQ forces,
+captured as an interview, plus a `spec.json` template.
+
+| Archetype | Shape | Ships |
+|---|---|---|
+| **`basic`** | A choice question the DQ restyles, with interaction capture. The reference structure every other archetype inherits | Interview, spec template, **full template** |
+| **`media-player`** | Video or audio stimulus with an overlay, timed capture and a controlled start | Interview, spec template |
+| **`grid-select`** | A grid or gallery of images or cards, single or multiple selection | Interview |
+| **`ranking`** | Drag-to-order or click-to-rank | Interview |
+| **`timed-exposure`** | Show a stimulus for a controlled duration, then hide it and ask | Interview |
+
+Only `basic` ships a full file template, and that is deliberate rather than unfinished.
+A template is a promise that the code inside it has been compiled and run; four
+half-verified templates would be four sources of confident, untested output. The other
+archetypes contribute what is genuinely reusable — the questions and the capture shape —
+and `dq.py new` says so plainly and redirects you to `basic`:
+
+```
+error: archetype 'media-player' has no template in this release
+       (status: interview-and-spec-only).
+Scaffold from 'basic', which is the reference structure every archetype
+inherits, then apply this archetype's questions and capture shape by hand.
+```
+
+Adding a full template for an archetype is the natural first contribution.
+
+## Verification
+
+```bash
+python3 scripts/dq.py verify <package>            # everything
+python3 scripts/dq.py verify <package> --only capture
+python3 scripts/dq.py verify <package> --only demo_attrs
+python3 scripts/dq.py verify <package> --json     # for a pipeline
+```
+
+**37 checks in six groups.** Every finding names the failure it prevents, because a
+check that only says "invalid" gets suppressed.
+
+<table>
+<tr><th align="left">Group</th><th align="left">Checks</th><th align="left">Defends</th></tr>
+<tr>
+<td><b><code>structure</code></b><br><i>8</i></td>
+<td><code>required_files</code> <code>identity</code> <code>xml_wellformed</code> <code>template_cdata</code> <code>meta_contract</code> <code>forbidden_files</code> <code>include_targets</code> <code>include_cost</code></td>
+<td>Is this a package at all. Includes a <b>case-sensitivity</b> check on include paths, because a case-insensitive local filesystem hides a wrong-case include that returns 404 only on the server</td>
+</tr>
+<tr>
+<td><b><code>styles</code></b><br><i>6</i></td>
+<td><code>styles_top_level</code> <code>stylevar_shape</code> <code>stylevar_classification</code> <code>stylevar_reachability</code> <code>render_defaults</code> <code>asset_syntax</code></td>
+<td>The parameter surface. <code>render_defaults</code> substitutes every default into the template and scans the result, which is how a default of the literal <code>""</code> is caught before it emits four quote characters and kills the page</td>
+</tr>
+<tr>
+<td><b><code>demo</code></b><br><i>7</i></td>
+<td><code>demo_fences</code> <code>demo_uses</code> <code>demo_attrs</code> <code>survey_grammar</code> <code>demo_requires</code> <code>demo_assets</code> <code>row_labels</code></td>
+<td>The boilerplate survey, which has <b>no compile gate of its own</b>. This group is its substitute: undeclared attributes, block grammar errors, assets the demo names but the package does not ship, and row-label forms recorded rather than assumed</td>
+</tr>
+<tr>
+<td><b><code>capture</code></b><br><i>4</i></td>
+<td><code>capture_contract</code> <code>capture_same_page</code> <code>generated_sync</code> <code>capture_hash_recorded</code></td>
+<td>The part that loses data. Cross-checks <code>spec.json</code> against the demo's declarations against the runtime's probe list, and fails on a <code>&lt;suspend/&gt;</code> between the question and its capture block</td>
+</tr>
+<tr>
+<td><b><code>runtime</code></b><br><i>9</i></td>
+<td><code>unscoped_selectors</code> <code>hot_selectors</code> <code>script_loader</code> <code>swallowed_rejection</code> <code>unsafe_evaluation</code> <code>instance_isolation</code> <code>strict_mode</code> <code>external_origins</code> <code>call_graph</code></td>
+<td>The browser. Theme-class collisions, selector-engine extensions, cache-busting loaders, swallowed autoplay rejections, singleton globals, unapproved origins, and methods called but never defined</td>
+</tr>
+<tr>
+<td><b><code>version</code></b><br><i>3</i></td>
+<td><code>version_coherence</code> <code>stale_version_strings</code> <code>runtime_version_hardcoded</code></td>
+<td>One declared version, everywhere. Including the <code>or 'N'</code> numeric fallback that a token-shaped rename does not match, and a prior version left behind in a respondent- or QA-facing string</td>
+</tr>
+</table>
+
+Full descriptions: [`reference/06-verify.md`](reference/06-verify.md).
+
+### What `verify` does not prove
+
+Stated first in the reference chapter, and stated again here, so the pass line is never
+over-read:
+
+> **It does not execute the DQ.** No JavaScript runs, no DOM is built, no payload goes
+> through the real pipeline. A pass means the files are structurally sound and the
+> contracts agree with each other.
+>
+> **It does not imply server acceptance.** That needs a compile, a respondent, the
+> required devices, and **exported data**. A correct screen does not prove a correct
+> dataset; hidden inputs can look right and still be discarded on submit.
+
+`verify` prints that caveat in its own pass line rather than leaving it to be
+remembered. Its value is narrow and real: it stops you spending a human round trip on
+something a regex could have told you.
+
+## The designer surface
+
+The acceptance test the whole parameter surface is designed against:
+
+> **Two Survey Designers who have not seen the package are given `IMPORT.md`, the demo
+> survey and a brief. Both reach a working question with correct data, unaided, without
+> opening any file under `lib/`.**
+
+No HTML, no CSS, no JavaScript, no Python. A designer who has to open a `lib/` file is a
+failure of the parameter surface, not a failure of the designer.
+
+`IMPORT.md` is generated from the fenced demo and the classification in `spec.json`, so
+it cannot drift from what was tested:
+
+```markdown
+# Using choice_cards.1
+
+You never need to write HTML, CSS, JavaScript or Python for this question, and
+you never need to open a file under `lib/`.
+
+## What to copy, in order
+
+| # | Block                                     | What to do              |
+|---|-------------------------------------------|-------------------------|
+| 1 | `question` — The question you configure   | **EDIT THIS**           |
+| 2 | `capture` — Data capture. Never edit.     | copy as-is — never edit |
+
+The question block and the capture block must end up on the same page, in that
+order, with no `<suspend/>` between them. A DQ can only write fields that are
+rendered, so across a page boundary the screen looks right and the export is empty.
+
+## Settings you may change
+
+Every one of these has a default that is correct for most studies. **Leave them
+out unless you mean to change one.** Restating a default pins your survey to
+today's behaviour.
+```
+
+That last instruction matters more than it looks. A survey that restates twenty defaults
+is pinned to today's behaviour and silently defeats every default a future version
+improves. `spec.json`'s three-way classification is what makes the distinction
+expressible at all, since Decipher's own `<stylevar>` vocabulary has no notion of
+"required" or "internal".
+
+## Versioning
+
+A version is a **completed, verified increment**, not a save point. Iterate freely
+inside a version while it is `state=dev`; cut the next one when the increment is done.
+A published `vN` is immutable — corrections go in `vN+1`.
+
+Two structural decisions remove the usual class of version bugs.
+
+**One declared version.** `meta.xml` holds it. `styles.xml` emits it to JavaScript as a
+single constant, and no runtime file hardcodes it. Filenames keep `<name>_vN` for
+cache-busting, but they are produced by `dq.py bump`, which rewrites only anchored,
+enumerated sites and **refuses on anything ambiguous** rather than guessing:
+
+```bash
+python3 scripts/dq.py bump test_environment/lib/choice_cards/v1 --apply
+```
+
+An unanchored search-and-replace across a package is the failure mode this replaces: it
+matches `v1` in a comment and misses `or '1'` in an expression. `version_coherence`
+then reads every version site independently and reports disagreement.
+
+**No hand-typed capture-block version.** On disk, `capture_block.xml` records a hash of
+its own declarations, and `verify` fails if it drifts from the demo. At runtime, the
+startup handshake checks labels, row counts and writability, which is what actually
+catches a stale block: if the declarations changed, the shape differs and the handshake
+says so. There is nothing to remember to increment.
+
+## The human boundary
+
+The skill **cannot** upload, compile, clone a survey, change survey state, export data or
+delete anything. That boundary is deliberate and it is not going to move. What the skill
+does instead is make each crossing cost as little as possible.
+
+```bash
+python3 scripts/dq.py handoff clone --source 990001
+python3 scripts/dq.py handoff upload-package --package <dir> --step "1 of 2"
+python3 scripts/dq.py handoff upload-survey --survey 990002 --step "2 of 2"
+python3 scripts/dq.py handoff compile --survey 990002 --media
+python3 scripts/dq.py handoff state   --survey 990002
+python3 scripts/dq.py handoff export  --survey 990002 --fixture "..."
+```
+
+Seven rules are baked into the templates, each answering a specific way a request fails:
+
+1. **One action per request.** A person given three tasks does two.
+2. **Name the artifact needed back.** Otherwise the reply is "done" and you still cannot
+   proceed.
+3. **Ask for error text verbatim.** A paraphrased compiler message costs another round
+   trip — the compiler names the exact element and attribute it rejected.
+4. **State the reason in one line.** A person who understands the constraint stops
+   working around it.
+5. **Say what not to touch**, when something adjacent is tempting.
+6. **Absolute local paths and absolute server paths.** Never "the lib folder".
+7. **Never ask for a judgement that was yours to make.**
+
+`handoff compile --media` adds one line that is easy to omit and expensive to omit:
+
+```
+    Please use a fresh profile or a private window. A browser that has already
+    played media on this origin is allowed to autoplay with sound, so it will
+    hide the very failure this checks for.
+```
+
+Templates and rationale: [`reference/07-handoff.md`](reference/07-handoff.md).
+
+## Safety invariants
+
+Enforced in code, not left to attention. A violation exits `3` and no work is done.
+
+| Invariant | Enforcement |
+|---|---|
+| The configured **test company only** | `guard_path()` refuses any path naming a `forbidden_companies` code or a production tree |
+| Production references never ship | `external_origins` fails on a forbidden company code anywhere in a package |
+| No hardcoded survey ids | `hardcoded_survey` fails on a numeric survey path in package code — it does not survive a survey copy, and every adopter would load assets from someone else's survey |
+| No guessed hostnames | `external_origins` fails on any origin absent from `spec.json` `approved_origins` |
+| A published `vN` is immutable | `new` and `bump` refuse an existing target directory |
+| Server-owned files stay on the server | `forbidden_files` fails on `uids.bin`, pickles and logs inside an upload unit |
+| No code execution over designer input | `unsafe_evaluation` fails on `eval` and `new Function` |
+| Untouched server evidence stays untouched | Directories holding downloaded survey material are never edited |
+
+## Reference library
+
+Nine chapters, written to be **consulted by topic rather than read end to end**.
+`SKILL.md` routes to them; each is short enough to load whole.
+
+Every claim carries an evidence label, so an observation is never mistaken for an
+inference:
+
+| Label | Means |
+|---|---|
+| `OFFICIAL` | Stated in Forsta Surveys documentation |
+| `TRAINING` | Stated in supplied Forsta training material |
+| `VERIFIED-*` | Observed through a compile or runtime experiment, with the date |
+| `CONVENTION` | An engineering choice to reduce risk. Not a platform law |
+| `UNRESOLVED` | Plausible but unproven. Never to be promoted silently |
+
+| Chapter | Covers |
+|---|---|
+| [`00-platform.md`](reference/00-platform.md) | The Decipher dialect: which of the four syntax layers is legal where, and the survey-side grammar a DQ must generate or document |
+| [`01-package.md`](reference/01-package.md) | Package anatomy, naming, version isolation, what belongs in an upload unit |
+| [`02-designer-surface.md`](reference/02-designer-surface.md) | Parameter classification, `meta.xml` and Builder, the delimited row-text grammar, localisation |
+| [`03-capture.md`](reference/03-capture.md) | Why a DQ cannot declare variables, the paste-once block, the same-page rule, the startup handshake, the exported-data rule |
+| [`04-client-runtime.md`](reference/04-client-runtime.md) | CSS cascade and specificity, theme class collisions, selector engines, script loaders, media autoplay policy, instance isolation |
+| [`05-findings.md`](reference/05-findings.md) | The dated findings register, each entry naming the failure text and the check that now catches it |
+| [`06-verify.md`](reference/06-verify.md) | What each check proves, and the two things none of them prove |
+| [`07-handoff.md`](reference/07-handoff.md) | The human-action request templates and the rules behind them |
+| [`08-collaboration.md`](reference/08-collaboration.md) | Several developers on one library, and what not to build |
+
+A finding with no check is a finding that will recur. That is the standard the register
+is held to.
+
+## Calibrating against your own library
+
+A check suite that only ever runs against its own fixtures measures itself. Point it at
+a library whose defects you already know and it measures the suite instead.
+
+```bash
+export DECIPHER_DQ_CORPUS=/path/to/your/lib
+cp tests/corpus_expectations.example.json tests/corpus_expectations.json
+# edit it to name packages, checks and expected substrings
+python3 tests/test_verify.py
+```
+
+```json
+{
+  "example_player/v3": [
+    { "check": "demo_attrs", "contains": "clip_length" },
+    { "check": "unscoped_selectors", "contains": ".cell" }
+  ],
+  "example_player/v4": [
+    { "check": "stale_version_strings", "contains": "v3" }
+  ]
+}
+```
+
+Two assertions come out of this, and they are the ones that matter:
+
+- **No check may crash on real input.** Real packages contain shapes no fixture
+  anticipates, and a check that raises is a check that has silently stopped defending
+  anything. This assertion needs no expectations file.
+- **Every defect you know about must be reported.** If `verify` cannot find something you
+  know is there, the check is wrong — not the library.
+
+`corpus_expectations.json` is gitignored. It describes your packages, not this skill.
+
+## Repository layout
+
+```
+decipher-dq/
+├── SKILL.md                     the router: invariants, the six-step loop,
+│                                routing table, version discipline
+├── config.json                  your environment. Edit once
+├── README.md
+│
+├── reference/                   nine chapters, consulted by topic
+│   └── 00-platform.md ... 08-collaboration.md
+│
+├── archetypes/
+│   ├── basic/
+│   │   ├── archetype.json       interview + spec template
+│   │   └── template/            the full, verified file template
+│   ├── media-player/            interview + spec template
+│   ├── grid-select/             interview
+│   ├── ranking/                 interview
+│   └── timed-exposure/          interview
+│
+├── scripts/
+│   └── dq.py                    six commands, no dependencies
+│
+├── checks/                      37 checks in six topical modules
+│   ├── common.py                shared scanners, config, the renderer
+│   ├── structure.py  styles.py  demo.py
+│   └── capture.py    runtime.py version.py
+│
+└── tests/
+    ├── test_verify.py           86 tests: one mutation per check, plus
+    │                            the opt-in corpus class
+    └── corpus_expectations.example.json
+```
+
+Roughly 4,600 lines, of which about 1,100 are reference prose and about 1,700 are
+checks. There is nothing to install and nothing to build.
+
+## Development
+
+```bash
+python3 tests/test_verify.py             # all 86
+python3 tests/test_verify.py Scaffolded  # the mutation tests only
+python3 tests/test_verify.py Corpus      # requires DECIPHER_DQ_CORPUS
+```
+
+The mutation tests work one way round, and the direction is the point: scaffold a clean
+package, **break exactly one thing**, and assert that the check which owns that failure
+fires. One fixture per check means a refactor cannot quietly disable part of the safety
+net while the suite still reports green.
+
+### Adding a check
+
+Two conditions, both required:
+
+1. **It must fire on a real failure.** Not a hypothetical one. Record the failure in
+   [`reference/05-findings.md`](reference/05-findings.md) with its evidence label, its
+   error text, and the check that now catches it.
+2. **It must stay quiet on a correct package.** Add the mutation test that breaks
+   exactly that one thing.
+
+A check with no test is not finished. A suite that passes everything proves nothing.
+
+### Adding an archetype
+
+1. `archetypes/<name>/archetype.json` — the questions, each with an `ask`, a `why` and
+   the decisions it `affects`, plus a `spec_template`.
+2. Optionally `template/` — but only once its code has been compiled and run through a
+   respondent. Until then, declare the archetype interview-only and let `dq.py new`
+   redirect to `basic`. Untested confident output is worse than an honest redirect.
+
+## Limits
+
+Stated plainly, because a tool that overstates itself is worse than one that does less.
+
+- **Local verification is structural.** No JavaScript is executed and no DOM is built.
+  Where a JavaScript runtime is available, an archetype's own unit tests can run over its
+  parser and state machine; where one is not, `verify` says so in its pass line.
+- **Server acceptance is a separate state.** A compile, a respondent, the required
+  devices, and exported data. `verify` passing means one thing; the export being correct
+  means another. Both are reported separately, always.
+- **The human boundary stays.** Upload, compile, clone, state changes, exports and
+  deletions belong to a person. The loop gets faster by wasting fewer round trips, not by
+  removing the person.
+- **`basic` is the only full template.** By design, until another archetype's code has
+  been through a respondent.
+- **`less` in `styles.xml` is unproven** on the platform version this was built against.
+  `verify` warns rather than fails, and the reference marks it `UNRESOLVED`.
+
+---
+
+<div align="center">
+
+**Built for Forsta Decipher survey engineering.**
+
+Contributions welcome: a check with a real failure behind it, an archetype template that
+has been through a respondent, or a finding with its evidence label attached.
+
+</div>

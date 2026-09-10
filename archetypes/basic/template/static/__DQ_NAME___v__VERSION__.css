@@ -1,0 +1,85 @@
+.__HOST_CLASS__ {
+    --accent: #2bbdb9;
+    --card-gap: 10px;
+    --card-pad: 14px;
+}
+
+.__HOST_CLASS__[data-density="compact"] {
+    --card-gap: 6px;
+    --card-pad: 8px;
+}
+
+.__HOST_CLASS__ .card-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--card-gap);
+}
+
+.__HOST_CLASS__ .card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    box-sizing: border-box;
+    width: 100%;
+    padding: var(--card-pad);
+    font: inherit;
+    text-align: left;
+    color: inherit;
+    background: #ffffff;
+    border: 2px solid #d7dbdf;
+    border-radius: 8px;
+    cursor: pointer;
+    -webkit-appearance: none;
+    appearance: none;
+    transition: border-color 120ms ease, background-color 120ms ease;
+}
+
+.__HOST_CLASS__ .card:hover {
+    border-color: #b9c0c6;
+}
+
+.__HOST_CLASS__ .card:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+}
+
+.__HOST_CLASS__ .card.is-selected {
+    border-color: var(--accent);
+    background: #f4fbfb;
+}
+
+.__HOST_CLASS__ .card-mark {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    border: 2px solid #d7dbdf;
+    border-radius: 50%;
+}
+
+.__HOST_CLASS__ .card.is-selected .card-mark {
+    border-color: var(--accent);
+    background: var(--accent);
+    box-shadow: inset 0 0 0 3px #ffffff;
+}
+
+.__HOST_CLASS__ .config-error {
+    padding: 14px;
+    font-size: 14px;
+    line-height: 1.5;
+    color: #7a1b1b;
+    background: #fdf3f3;
+    border: 1px solid #d9a2a2;
+    border-radius: 6px;
+}
+
+.__HOST_CLASS__ .config-error h3 {
+    margin: 0 0 8px;
+    font-size: 15px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .__HOST_CLASS__ .card {
+        transition: none;
+    }
+}

@@ -1,0 +1,96 @@
+<survey xmlns:builder="http://decipherinc.com/builder" xmlns:ss="http://decipherinc.com/ss" xmlns:__DQ_NAME__="http://decipherinc.com/__DQ_NAME__" alt="__TITLE__ v__VERSION__ package demo" autosave="0" builderCompatible="1" compat="__COMPAT__" extraVariables="source,record,decLang,list,userAgent" lang="english" name="Survey" setup="term,quota,time,decLang" state="dev" mobile="compat" builder:wizardCompleted="1">
+
+  <samplesources default="1">
+    <samplesource list="0">
+      <title>Sample Source</title>
+      <row label="1">Default</row>
+    </samplesource>
+  </samplesources>
+
+  <note>
+  ================================================================================
+  __TITLE__ v__VERSION__ - demo and boilerplate
+  ================================================================================
+
+  This file is the manual. IMPORT.md is generated from it, so what you copy here
+  is exactly what was tested.
+
+  Copy the blocks below in order. Each one is fenced:
+
+      &lt;!-- dq:block id="..." action="..." --&gt;
+          ... copy from here to the closing fence ...
+      &lt;!-- dq:endblock --&gt;
+
+  Only the block marked action="edit" is yours to change. The one marked
+  copy-verbatim records your data; editing it loses data silently.
+
+  THE ONE RULE THAT BREAKS DATA
+      The question block and the capture block must be on the SAME PAGE, in that
+      order, with no &lt;suspend/&gt; between them. A question can only write fields
+      the browser has rendered. Across a page boundary the screen looks correct
+      and the export is empty.
+
+  You never need to write HTML, CSS, JavaScript or Python for this question.
+  ================================================================================
+  </note>
+
+  <!-- dq:requires survey-attr extraVariables contains record -->
+
+  <!-- dq:block id="question" action="edit" title="The question you configure" -->
+  <__QUESTION_TAG__ label="Q_DEMO" uses="__DQ_NAME__.__VERSION__" showSource="1"
+      __DQ_NAME__:accent="#2bbdb9">
+    <title>Which of these appeals to you most?</title>
+    <comment>Select one.</comment>
+    <row label="r1">The first option</row>
+    <row label="r2">The second option</row>
+    <row label="r3">The third option</row>
+  </__QUESTION_TAG__>
+  <!-- dq:endblock -->
+
+  <!-- dq:block id="capture" action="copy-verbatim" title="Data capture. Never edit." -->
+  <text label="__DQ_UPPER___ORDER" size="12" optional="1">
+    <title>&lt;span style="display:none"&gt;Order in which each row was first touched&lt;/span&gt;</title>
+    <row label="r1">Row 1</row>
+    <row label="r2">Row 2</row>
+    <row label="r3">Row 3</row>
+    <row label="r4">Row 4</row>
+    <row label="r5">Row 5</row>
+    <row label="r6">Row 6</row>
+    <row label="r7">Row 7</row>
+    <row label="r8">Row 8</row>
+    <row label="r9">Row 9</row>
+    <row label="r10">Row 10</row>
+  </text>
+  <!-- dq:endblock -->
+
+  <suspend/>
+
+  <!-- Two instances on one page. This is a test fixture, not something to copy:
+       it proves the DQ scopes its DOM queries and does not share state. -->
+  <__QUESTION_TAG__ label="Q_TWO_A" uses="__DQ_NAME__.__VERSION__" showSource="1"
+      __DQ_NAME__:density="compact">
+    <title>Two instances, first</title>
+    <row label="r1">Alpha</row>
+    <row label="r2">Beta</row>
+  </__QUESTION_TAG__>
+
+  <__QUESTION_TAG__ label="Q_TWO_B" uses="__DQ_NAME__.__VERSION__" showSource="1"
+      __DQ_NAME__:accent="#fc2d56">
+    <title>Two instances, second</title>
+    <row label="r1">Gamma</row>
+    <row label="r2">Delta</row>
+  </__QUESTION_TAG__>
+
+  <suspend/>
+
+  <!-- Invalid configuration fixture. One row, where the DQ requires two or more.
+       It must show a scoped configuration error and record nothing, rather than
+       rendering something that looks like it works. -->
+  <__QUESTION_TAG__ label="Q_INVALID" uses="__DQ_NAME__.__VERSION__" showSource="1">
+    <title>Invalid on purpose: only one row</title>
+    <row label="r1">Only choice</row>
+  </__QUESTION_TAG__>
+
+  <suspend/>
+
+</survey>

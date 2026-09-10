@@ -1,0 +1,34 @@
+<meta>
+<scope>__SCOPE__</scope>
+<version>__VERSION__</version>
+<title>__TITLE__</title>
+<compat>__COMPAT__</compat>
+<supports>noanswer,open,fused</supports>
+<count name="row">2-10</count>
+<owner>__OWNER__</owner>
+<state>dev</state>
+<builder>pan</builder>
+<description><![CDATA[
+  <h3>__TITLE__</h3>
+  <p>Presents the question's rows as selectable cards and records the order in
+  which the respondent touched them.</p>
+
+  <p><b>Required:</b> paste the capture block from this package's demo into your
+  survey, on the same page as the question and after it. The question checks the
+  block at startup and refuses to run if it is missing, undersized or
+  unwritable.</p>
+
+  <p>See <code>IMPORT.md</code> in this package for the ordered copy list and the
+  settings reference. You do not need to open any other file.</p>
+]]></description>
+<modifies>controls</modifies>
+<template scope="__QUESTION_TAG__"><![CDATA[
+<__QUESTION_TAG__ label="{x}" uses="__DQ_NAME__.__VERSION__"
+    __DQ_NAME__:accent="#2bbdb9">
+  <title>New __TITLE__ question</title>
+  <comment>Select one.</comment>
+  <row label="r1">First choice</row>
+  <row label="r2">Second choice</row>
+</__QUESTION_TAG__>
+]]></template>
+</meta>

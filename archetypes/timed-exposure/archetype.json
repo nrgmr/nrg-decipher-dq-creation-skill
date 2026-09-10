@@ -1,0 +1,46 @@
+{
+  "archetype": "timed-exposure",
+  "summary": "Show a stimulus for a controlled duration, then hide it and ask about it. Concept and pack tests.",
+  "use_when": [
+    "exposure time is part of the method",
+    "the stimulus must be hidden before the questions",
+    "the request mentions timed, forced or controlled exposure"
+  ],
+  "inherits_structure_from": "basic",
+  "status": "interview-only",
+  "warnings": [
+    "Interview only in this release. Scaffold from `basic`, then apply this archetype's questions and capture shape by hand; `basic` is the reference structure and every archetype inherits it."
+  ],
+  "questions": [
+    {
+      "ask": "How long is the exposure, and is it fixed by us or set per survey?",
+      "why": "If a designer sets it, it is public API and needs a sane default and a documented range.",
+      "affects": [
+        "spec.json parameters"
+      ]
+    },
+    {
+      "ask": "What happens if the respondent's browser throttles the timer, for example on a background tab?",
+      "why": "A background tab throttles timers, so a wall-clock exposure and an intended exposure diverge. The actual elapsed time must be captured, not assumed.",
+      "affects": [
+        "capture fields",
+        "the timing method"
+      ]
+    },
+    {
+      "ask": "Is re-exposure allowed, and if so how many times?",
+      "why": "Re-exposure changes the measure, so each exposure needs its own timestamped record.",
+      "affects": [
+        "capture rows"
+      ]
+    },
+    {
+      "ask": "What must the respondent not be able to do: screenshot, right-click, go back?",
+      "why": "These protections range from cosmetic to termination-inducing. The reference implementation shipped a security layer whose termination code was unmapped, so it force-advanced respondents mid-stimulus instead of terminating them.",
+      "affects": [
+        "whether a security subsystem exists",
+        "termination routing"
+      ]
+    }
+  ]
+}

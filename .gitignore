@@ -1,0 +1,24 @@
+# Calibration against a client's own library. The file describes their packages,
+# not this skill, so it never belongs in the repository.
+tests/corpus_expectations.json
+
+# Anything a run drops beside the skill.
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Never commit survey material. A Decipher survey export contains client content
+# and respondent data; a DQ package under lib/ belongs in its own repository.
+incoming/
+test_environment/
+prod_environment/
+*/uids.bin
+*/original.bin
+*.pickle
+
+# Editor and OS noise.
+.DS_Store
+Thumbs.db
+*.swp
+.idea/
+.vscode/

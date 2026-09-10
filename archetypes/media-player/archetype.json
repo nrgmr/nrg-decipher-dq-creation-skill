@@ -1,0 +1,155 @@
+{
+  "archetype": "media-player",
+  "summary": "Video or audio stimulus with an overlay, timed capture and a controlled start. Covers a single-stimulus player and a multi-stimulus feed.",
+  "use_when": [
+    "the request names a platform: \"looks like a YouTube player\", \"like TikTok\", \"like Reels\"",
+    "there is a video or audio stimulus and exposure must be measured",
+    "an external player SDK is involved"
+  ],
+  "inherits_structure_from": "basic",
+  "status": "interview-and-spec-only",
+  "warnings": [
+    "No template ships in this release. Scaffold from `basic`, then apply the spec_template below and this archetype's answers. `basic` is the reference structure.",
+    "Media is the highest-risk archetype here. Every version of the reference implementation lost time to one of: blocked autoplay, unscoped selectors colliding with the theme, inherited CSS that could not be overridden, or a version marker that drifted. Read reference/04-client-runtime.md before writing any of it.",
+    "Sound is a research-validity question, not a technical one. A respondent who watches an advertisement silently produces data that looks complete and is not.",
+    "An SDK bundle from a third party is an unapproved origin until it is in spec.json approved_origins with a reason."
+  ],
+  "questions": [
+    {
+      "ask": "One stimulus per question, or a feed of several? If a feed, how many, and is the order fixed, rotated, or randomised?",
+      "why": "A feed needs a manifest in row text, a rotation rule, and per-slot capture keyed to the item rather than the slot. A single stimulus needs none of that. Building the feed machinery for a single stimulus is the commonest overreach.",
+      "affects": [
+        "the row-text grammar",
+        "capture row counts",
+        "whether a rotation rule is needed"
+      ]
+    },
+    {
+      "ask": "Is sound required for the data to be valid?",
+      "why": "Browsers block unmuted autoplay without a user gesture, and a swallowed rejection is a frozen frame that is invisible in the export. If sound matters, the feed must open behind a tap-to-start gate. If it does not, muted autoplay is acceptable and the mute state must be captured per stimulus.",
+      "affects": [
+        "the start gate",
+        "capture fields",
+        "the compile handoff wording"
+      ]
+    },
+    {
+      "ask": "Which player or SDK, and which account? Is the player configuration something we control or something we inherit?",
+      "why": "Streaming behaviour, title chrome and rendition selection may live in a vendor player configuration you cannot see from the package. Knowing that up front stops you from trying to fix in code what belongs in configuration.",
+      "affects": [
+        "spec.json approved_origins",
+        "the unresolved list",
+        "what to ask the account owner"
+      ]
+    },
+    {
+      "ask": "What must be measured per stimulus? Watched seconds, completion, interactions with timestamps, an ordered event log?",
+      "why": "This is the capture contract and it is unrecoverable once fieldwork starts. An ordered event log needs a capacity, a count and an overflow flag decided now.",
+      "affects": [
+        "spec.json capture",
+        "the capture block",
+        "the event-log capacity"
+      ]
+    },
+    {
+      "ask": "Can the respondent skip, and can they go back?",
+      "why": "Skippability interacts with everything: navigation locks, whether an advertisement slot can be bypassed, and whether persisted state must survive a refresh.",
+      "affects": [
+        "navigation guards",
+        "capture of skip events"
+      ]
+    },
+    {
+      "ask": "Which devices, and is touch navigation required?",
+      "why": "Touch, autoplay policy and viewport behaviour cannot be validated by emulation. If touch matters, a real-device handoff is mandatory before acceptance.",
+      "affects": [
+        "the device handoff",
+        "the swipe and wheel handlers"
+      ]
+    },
+    {
+      "ask": "Is a watermark or anti-piracy overlay required?",
+      "why": "It is a common ask and a common source of damage: the reference implementation's watermark styled hundreds of unrelated page elements and hid the wrong tiles, because it selected on theme class names without scoping.",
+      "affects": [
+        "whether an overlay subsystem exists at all"
+      ]
+    }
+  ],
+  "spec_template": {
+    "name": "<snake_case_name>",
+    "version": 1,
+    "title": "<Human readable title>",
+    "owner": "<team address>",
+    "scope": "text",
+    "compat": "155",
+    "archetype": "media-player",
+    "approved_origins": [],
+    "parameters": [
+      {
+        "name": "start_gate",
+        "class": "public-optional",
+        "type": "bool",
+        "default": "1",
+        "desc": "1 = show a tap-to-start panel and begin on the respondent's tap. Required for sound: browsers block video with audio until the respondent has interacted with the page. 0 = autoplay muted."
+      },
+      {
+        "name": "start_gate_text",
+        "class": "public-optional",
+        "type": "string",
+        "default": "Tap to start",
+        "desc": "Caption on the start panel. To translate it, point this at a survey resource such as ${res.my_label}."
+      },
+      {
+        "name": "allow_skip",
+        "class": "public-optional",
+        "type": "bool",
+        "default": "0",
+        "desc": "0 = the respondent must watch to the end before continuing. 1 = they may skip."
+      },
+      {
+        "name": "capture_watched",
+        "class": "internal",
+        "type": "string",
+        "default": "__DQ_UPPER___WATCHED",
+        "desc": "Name of the survey variable holding seconds watched. Must match the pasted capture block."
+      },
+      {
+        "name": "capture_events",
+        "class": "internal",
+        "type": "string",
+        "default": "__DQ_UPPER___EVENTS",
+        "desc": "Name of the survey variable holding the ordered event log. Must match the pasted capture block."
+      }
+    ],
+    "capture": [
+      {
+        "label": "__DQ_UPPER___WATCHED",
+        "param": "captureWatched",
+        "type": "text",
+        "rows": 0,
+        "size": 12,
+        "desc": "Seconds of the stimulus actually watched, to two decimal places.",
+        "empty_means": "never started"
+      },
+      {
+        "label": "__DQ_UPPER___EVENTS",
+        "param": "captureEvents",
+        "type": "text",
+        "rows": 60,
+        "row_label_form": "padded",
+        "size": 64,
+        "desc": "Ordered event log, one event per row: sequence, elapsed ms, action, value.",
+        "empty_means": "no further events",
+        "note": "capacity is 60; the runtime also writes a count and an overflow flag so truncation is never silent"
+      },
+      {
+        "label": "__DQ_UPPER___EVENT_COUNT",
+        "param": "captureEventCount",
+        "type": "text",
+        "rows": 0,
+        "size": 6,
+        "desc": "How many events occurred, which may exceed the 60 rows recorded."
+      }
+    ]
+  }
+}

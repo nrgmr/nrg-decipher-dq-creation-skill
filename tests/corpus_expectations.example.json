@@ -1,0 +1,31 @@
+{
+  "_how": [
+    "Copy to corpus_expectations.json, then edit. That file is gitignored, because",
+    "its contents describe your library and not this skill.",
+    "",
+    "Each key is a package directory relative to DECIPHER_DQ_CORPUS, in the form",
+    "<name>/<vN>. Each entry names a check you expect to fire there, and",
+    "optionally a substring the finding must mention.",
+    "",
+    "Write one entry per defect you already know about: a compile error you spent",
+    "a round trip on, a parameter the demo sets but the package never declared, a",
+    "stale version string, an asset the demo names but does not ship. If verify",
+    "cannot find a defect you know is there, the check is wrong, not the library."
+  ],
+
+  "example_player/v3": [
+    { "check": "demo_attrs", "contains": "clip_length" },
+    { "check": "unscoped_selectors", "contains": ".cell" }
+  ],
+
+  "example_player/v4": [
+    { "check": "stale_version_strings", "contains": "v3" },
+    { "check": "demo_assets", "contains": ".png" }
+  ],
+
+  "example_grid/v1": [
+    { "check": "hardcoded_survey" },
+    { "check": "script_loader" },
+    { "check": "swallowed_rejection" }
+  ]
+}

@@ -1,0 +1,83 @@
+{
+  "archetype": "basic",
+  "summary": "An enhanced choice question. Rows are choices; the DQ restyles them and records interaction. The reference implementation every other archetype copies its structure from.",
+  "use_when": [
+    "the request is about how choices LOOK or how selection BEHAVES",
+    "there is no media, no timing and no external SDK",
+    "you need a worked example of the package conventions"
+  ],
+  "questions": [
+    {
+      "ask": "Which question types must this attach to? radio, checkbox, or both?",
+      "why": "meta.xml <scope> must be the narrowest true scope, and the demo has to prove every scope it claims. A DQ claiming radio,checkbox with a radio-only demo is untested for half its surface.",
+      "affects": ["meta.xml scope", "the demo matrix"]
+    },
+    {
+      "ask": "Does the respondent's answer come from the normal question, or does the DQ record something extra?",
+      "why": "The normal answer is already a survey variable. Anything extra needs a capture block in the adopting survey, because a DQ cannot declare survey variables.",
+      "affects": ["spec.json capture", "whether a capture block is needed at all"]
+    },
+    {
+      "ask": "What must be recorded beyond the answer, and per what? Per row, or once per question?",
+      "why": "Row count and shape are the capture contract. Getting it wrong is unrecoverable once fieldwork starts.",
+      "affects": ["spec.json capture rows", "the capture block"]
+    },
+    {
+      "ask": "Which visual settings does a Survey Designer choose per survey, and which are fixed by us?",
+      "why": "Every parameter is public API. An unclassified one ends up restated on every adopting question, pinning those surveys to today's behaviour.",
+      "affects": ["spec.json parameters", "IMPORT.md"]
+    },
+    {
+      "ask": "Desktop only, or mobile too? If mobile, is touch interaction required?",
+      "why": "Touch and viewport behaviour cannot be validated by emulation and need a real-device handoff.",
+      "affects": ["the CSS breakpoints", "the device handoff"]
+    }
+  ],
+  "spec_template": {
+    "name": "<snake_case_name>",
+    "version": 1,
+    "title": "<Human readable title>",
+    "owner": "<team address>",
+    "scope": "radio",
+    "compat": "155",
+    "archetype": "basic",
+    "approved_origins": [],
+    "parameters": [
+      {
+        "name": "accent",
+        "class": "public-optional",
+        "type": "color",
+        "default": "#2bbdb9",
+        "desc": "Colour of the selected card border and its check mark."
+      },
+      {
+        "name": "density",
+        "class": "public-optional",
+        "type": "enum",
+        "values": "comfortable,compact",
+        "default": "comfortable",
+        "desc": "comfortable gives each card more padding; compact fits more on a phone screen without scrolling."
+      },
+      {
+        "name": "capture_order",
+        "class": "internal",
+        "type": "string",
+        "default": "__DQ_UPPER___ORDER",
+        "desc": "Name of the survey variable that records the order rows were touched. Do not change; it must match the pasted capture block."
+      }
+    ],
+    "capture": [
+      {
+        "label": "__DQ_UPPER___ORDER",
+        "param": "captureOrder",
+        "type": "text",
+        "rows": 10,
+        "row_label_form": "plain",
+        "size": 12,
+        "desc": "For each row, the 1-based order in which it was first touched. Empty means never touched.",
+        "empty_means": "not touched",
+        "note": "sized for up to 10 question rows; meta.xml count is bounded to match"
+      }
+    ]
+  }
+}

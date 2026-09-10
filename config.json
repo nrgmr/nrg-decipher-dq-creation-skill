@@ -1,0 +1,9 @@
+{
+  "_comment": "Edit once after cloning. Every path, URL and guard in this skill is derived from these five values.",
+
+  "host": "<your-decipher-host>",
+  "server_root": "/home/hermes/v2/selfserve",
+  "test_company": "55c",
+  "forbidden_companies": ["53b"],
+  "local_root": "test_environment"
+}

@@ -1,0 +1,46 @@
+__DQ_NAME__ v__VERSION__ - change log
+=====================================
+
+Scaffolded from the `basic` archetype. Self-contained: no runtime file is
+imported from another version.
+
+The package runtime files carry no explanatory comments, by convention. This file
+is where the reasoning lives, because an operator needs version behaviour without
+access to the conversation that produced it.
+
+
+What this version does
+----------------------
+Presents the adopting question's rows as selectable cards and records, per row,
+the order in which the respondent first touched it.
+
+Designer surface: see IMPORT.md, which is generated from spec.json and the demo.
+Do not document parameters here as well; two copies drift.
+
+
+Capture
+-------
+One variable, __DQ_UPPER___ORDER, text, one row per question row.
+
+Text rather than number, deliberately: an `input type="number"` silently discards
+a non-numeric write, and the empty string is a meaningful value here ("never
+touched"). A number field would coerce it.
+
+The block is generated from the demo survey by `dq.py extract`, and identifies
+itself by a hash of its own declarations. There is no version number to forget to
+bump.
+
+
+Not verified
+------------
+NOT COMPILED, no respondent, no export. `dq.py verify` passes, which is
+structural only: it does not execute the DQ and does not imply server
+acceptance.
+
+Outstanding before this can be called done:
+  - compile through a fresh numeric survey (the /lib demo is never compiled)
+  - one respondent through it in `testing` state
+  - the exported row for that respondent, compared field by field
+  - the two-instance fixture: both questions independent, neither writing the
+    other's capture rows
+  - the invalid fixture: a configuration error, and nothing recorded

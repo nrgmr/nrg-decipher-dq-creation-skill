@@ -1,0 +1,55 @@
+{
+  "archetype": "grid-select",
+  "summary": "A grid or gallery of images or cards where the respondent picks one or several.",
+  "use_when": [
+    "the stimulus is a set of images",
+    "selection is spatial rather than a list",
+    "the request mentions a gallery, grid, board or shelf"
+  ],
+  "inherits_structure_from": "basic",
+  "status": "interview-only",
+  "warnings": [
+    "Interview only in this release. Scaffold from `basic`, then apply this archetype's questions and capture shape by hand; `basic` is the reference structure and every archetype inherits it."
+  ],
+  "questions": [
+    {
+      "ask": "How many items, and does the grid need to scroll or paginate?",
+      "why": "Row count drives capture size, and a scrolling grid needs viewport handling that a fixed one does not.",
+      "affects": [
+        "capture rows",
+        "meta.xml count"
+      ]
+    },
+    {
+      "ask": "Single or multiple selection, and is there a minimum or maximum?",
+      "why": "meta.xml can declare require/count and enforce it in Builder before any code runs, which prevents a class of designer error for free.",
+      "affects": [
+        "meta.xml scope and require",
+        "validation"
+      ]
+    },
+    {
+      "ask": "Where do the images come from: uploaded to each survey, or a shared URL base?",
+      "why": "An asset path that contains a survey number does not survive a survey copy. A default containing a survey id means every adopter loads images from someone else's survey.",
+      "affects": [
+        "the row-text grammar",
+        "IMPORT.md prerequisites"
+      ]
+    },
+    {
+      "ask": "Is selection order or dwell time part of the data, or only the final choice?",
+      "why": "The final choice is already the question's own answer. Anything else needs a capture block.",
+      "affects": [
+        "spec.json capture",
+        "whether a capture block is needed"
+      ]
+    },
+    {
+      "ask": "Randomise item order per respondent?",
+      "why": "Randomisation means capture must be keyed to the item, not the grid position, or the data cannot be interpreted.",
+      "affects": [
+        "capture identity fields"
+      ]
+    }
+  ]
+}
