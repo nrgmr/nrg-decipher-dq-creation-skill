@@ -4,13 +4,13 @@
 
 **From a sentence to an upload-ready Forsta Decipher Dynamic Question.**
 
-A skill for **Claude Code and the Claude app** that turns *"build me a question that
-behaves like a video feed"* into a complete, verified DQ package — with a boilerplate
-survey that doubles as the Survey Designer's manual.
+Works in **Claude Code, the Claude app, OpenAI Codex and ChatGPT**. Turns *"build me
+a question that behaves like a video feed"* into a complete, verified DQ package —
+with a boilerplate survey that doubles as the Survey Designer's manual.
 
 **[Set up in five minutes ↓](#set-up)**
 
-`37 local checks` · `5 archetypes` · `7 commands` · `9 reference chapters` · `zero dependencies`
+`37 local checks` · `5 archetypes` · `7 commands` · `4 surfaces` · `zero dependencies`
 
 </div>
 
@@ -42,22 +42,21 @@ survey that doubles as the Survey Designer's manual.
 
 ## Set up
 
-Two paths. Pick by whether you work in a terminal. **Skills do not sync between
-them** — install in each place you want to use it.
+Four surfaces, two vendors. **Nothing syncs between them** — set up each place you
+want to use it. Everything the skill needs is Python 3.10+ and the standard library.
 
-| | **A. Claude app / claude.ai** | **B. Claude Code** |
-|---|---|---|
-| **For** | Survey Designers, project managers, anyone who would rather not open a terminal | Developers |
-| **Setup** | Upload one `.zip` in settings | Clone one folder |
-| **You need** | Pro, Max, Team or Enterprise, with code execution on | Python 3.10 or newer |
-| **Your survey files** | You attach them to the chat | Read straight from disk |
-| **What you get back** | A `.zip` to download, with `UPLOAD.md` inside | Files written into your project |
+| Surface | For | Setup | You get back |
+|---|---|---|---|
+| **[A. Claude app](#a-claude-app-or-claudeai--no-terminal)** | Anyone. No terminal | Upload one `.zip` | A `.zip` to download |
+| **[B. Claude Code](#b-claude-code)** | Developers | Clone one folder | Files in your project |
+| **[C. Codex](#c-openai-codex)** | Developers | Clone, plus one `AGENTS.md` line | Files in your project |
+| **[D. ChatGPT](#d-chatgpt-custom-gpt)** | Anyone. No terminal | Paste instructions, upload 3 files | A `.zip` to download |
 
 ---
 
 ### A. Claude app or claude.ai — no terminal
 
-**1. Get `decipher-dq.zip`.** Ask whoever set this up for the file, or build it:
+**1. Get `decipher-dq.zip`.** Ask whoever set this up, or build it:
 
 ```bash
 python3 scripts/build_claude_zip.py     # writes dist/decipher-dq.zip
@@ -74,13 +73,13 @@ works without it: the skill runs Python to verify what it builds.
 > *Create a Dynamic Question that shows nine product images and asks the respondent
 > to pick their top three, in order.*
 
-That is the whole setup. The skill loads itself, interviews you before writing
-anything, and finishes by giving you a `.zip` to download. See
+The skill loads itself, interviews you before writing anything, and finishes by
+giving you a `.zip` to download. See
 [what the conversation looks like](#without-a-terminal-what-the-conversation-looks-like).
 
 ---
 
-### B. Claude Code — for developers
+### B. Claude Code
 
 **1. Clone it.** The target directory must be named `decipher-dq`: the skill name
 comes from the folder, not the repository, and the two differ here.
@@ -100,12 +99,90 @@ git clone https://github.com/lyle-nrg/nrg-decipher-dq-creation-skill.git \
 ```bash
 cd ~/.claude/skills/decipher-dq
 python3 scripts/dq.py --help
-python3 tests/test_verify.py        # 55 tests, about 3 seconds
+python3 tests/test_verify.py        # 61 tests, about 3 seconds
 ```
 
 **3. Ask for a DQ** in natural language — *"create a DQ that works like an image
 gallery"* — and the skill loads itself. Or drive the tooling directly; see
 [the developer workflow](#the-developer-workflow).
+
+---
+
+### C. OpenAI Codex
+
+Codex reads **`AGENTS.md`**, not `SKILL.md`. This repository ships one, generated
+from `SKILL.md` so the two cannot drift, and a test asserts it stays in sync.
+
+**Working inside this repository** — nothing to do. Codex loads `AGENTS.md`
+automatically.
+
+**Working in your own survey project**, pick one:
+
+```bash
+# 1. Clone it in, then point your project's AGENTS.md at it
+git clone https://github.com/lyle-nrg/nrg-decipher-dq-creation-skill.git \
+  tools/decipher-dq
+
+cat >> AGENTS.md <<'EOF'
+
+## Decipher Dynamic Questions
+For any task that creates, changes, verifies or packages a DQ, follow
+tools/decipher-dq/AGENTS.md and use tools/decipher-dq/scripts/dq.py.
+EOF
+```
+
+```bash
+# 2. Or make it a personal default across every repository
+mkdir -p ~/.codex
+cat ~/skills/decipher-dq/AGENTS.md >> ~/.codex/AGENTS.md
+```
+
+Codex merges instruction files from your working directory upwards, with the
+closest winning, and caps the total at 32 KiB. `AGENTS.md` here is about 8.6 KiB,
+roughly a quarter of that, leaving room for your own project rules. Regenerate it
+after editing `SKILL.md`:
+
+```bash
+python3 scripts/build_agents_md.py            # write it
+python3 scripts/build_agents_md.py --check    # fail if stale
+```
+
+---
+
+### D. ChatGPT (custom GPT)
+
+A custom GPT caps instructions at **8,000 characters** and knowledge at **10 files**.
+This skill is larger than both, so it is repackaged: one condensed operating brief,
+and three knowledge files instead of forty.
+
+**1. Build the package.**
+
+```bash
+python3 scripts/build_chatgpt.py        # writes dist/chatgpt/
+```
+
+```
+dist/chatgpt/
+├── INSTRUCTIONS.md              3,761 of 8,000 characters
+├── decipher-dq-reference.md     the nine reference chapters, consolidated
+├── decipher-dq-archetypes.md    the five interviews and spec templates
+└── decipher-dq-tools.zip        the scaffolder and the 37-check verifier
+```
+
+**2. Create the GPT.** ChatGPT → **Explore GPTs → Create**, then the **Configure**
+tab.
+
+**3. Paste `INSTRUCTIONS.md`** into the **Instructions** box.
+
+**4. Enable Code Interpreter** under Capabilities. Without it the GPT can describe a
+package but cannot verify one, and an unverified package is not a deliverable.
+
+**5. Upload the three knowledge files** under Knowledge. Leave the other seven slots
+free: the 10-file cap is for the lifetime of the GPT, not per edit.
+
+**6. Ask for a DQ** in plain language. The GPT unpacks the tools into its sandbox on
+first use, then runs the same scaffolder and the same 37 checks as every other
+surface, and hands you a `.zip` with `UPLOAD.md` inside.
 
 ---
 
@@ -124,16 +201,40 @@ with it. Full key list: [Configuration reference](#configuration-reference).
 Leaving `host` unset is safe. The skill asks for it once when it first needs a URL
 and refuses to guess, because a guessed hostname costs a round trip through a person.
 
+On the two upload-based surfaces the file is deliberately **not** shipped, so set the
+values inside the sandbox when asked, or commit them to `config.json` first — which
+publishes them to anyone who clones the repository.
+
+---
+
+### What is actually the same everywhere
+
+The parts that matter are one implementation, not four:
+
+| | Claude Code | Claude app | Codex | ChatGPT |
+|---|---|---|---|---|
+| The 37 checks | ✅ | ✅ | ✅ | ✅ |
+| Scaffolder and archetype interviews | ✅ | ✅ | ✅ | ✅ |
+| `bundle` with `UPLOAD.md` | ✅ | ✅ | ✅ | ✅ |
+| Full reference library | ✅ | ✅ | ✅ | consolidated to one file |
+| Reads your project from disk | ✅ | attach files | ✅ | attach files |
+| Instruction source | `SKILL.md` | `SKILL.md` | `AGENTS.md`, generated | pasted brief |
+
+The verifier is plain Python with no dependencies, which is why it runs unchanged in
+all four. Confirmed by a test that unpacks the ChatGPT tools zip into a bare
+directory — no `reference/`, no `tests/`, no `SKILL.md` — and runs a scaffold and a
+full verify inside it.
+
 ---
 
 ### Worth knowing before you hand this to a team
 
-- **Per person on claude.ai.** Each teammate uploads the zip themselves. Team and
-  Enterprise administrators can instead publish it organisation-wide through
-  organisation settings, which distributes it once for everyone.
-- **Updating.** In Claude Code, `git pull` and re-run the tests — the suite *is* the
-  upgrade check. In the Claude app, rebuild the zip and upload it again; there is no
-  in-place update.
+- **Per person on claude.ai and ChatGPT.** Each teammate installs it themselves.
+  Claude Team and Enterprise administrators can publish org-wide through
+  organisation settings; a custom GPT can be shared by link or within a workspace.
+- **Updating.** In Claude Code or Codex, `git pull` and re-run the tests — the suite
+  *is* the upgrade check. On the two upload-based surfaces, rebuild and re-upload;
+  neither updates in place.
 - **On WSL, clone into your Linux home directory,** not under `/mnt/c`. That mount
   refuses `chmod`, so `git init` fails outright there, and file access is several
   times slower.
@@ -144,8 +245,6 @@ and refuses to guess, because a guessed hostname costs a round trip through a pe
 > directory contains client content and respondent data, and publishing it is not
 > recoverable. The bundled `.gitignore` refuses the obvious cases; directory
 > discipline covers the rest.
-
----
 
 ## Without a terminal: what the conversation looks like
 
@@ -844,9 +943,13 @@ decipher-dq/
 │   ├── ranking/                 interview
 │   └── timed-exposure/          interview
 │
+├── AGENTS.md                    generated from SKILL.md, for OpenAI Codex
+│
 ├── scripts/
 │   ├── dq.py                    seven commands, no dependencies
-│   └── build_claude_zip.py      packages this skill for claude.ai upload
+│   ├── build_claude_zip.py      packages this skill for claude.ai upload
+│   ├── build_agents_md.py       regenerates AGENTS.md; --check asserts sync
+│   └── build_chatgpt.py         packages it for a ChatGPT custom GPT
 │
 ├── checks/                      37 checks in six topical modules
 │   ├── common.py                shared scanners, config, the renderer
@@ -854,8 +957,8 @@ decipher-dq/
 │   └── capture.py    runtime.py version.py
 │
 └── tests/
-    ├── test_verify.py           55 tests: one mutation per check, the
-    │                            packaging paths, plus the opt-in corpus class
+    ├── test_verify.py           61 tests: one mutation per check, every
+    │                            packaging path, plus the opt-in corpus class
     └── corpus_expectations.example.json
 ```
 
@@ -867,10 +970,11 @@ checks. There is nothing to install and nothing to build.
 ## Development
 
 ```bash
-python3 tests/test_verify.py             # all 55
+python3 tests/test_verify.py             # all 61
 python3 tests/test_verify.py Scaffolded  # the 39 mutation tests only
 python3 tests/test_verify.py Bundle      # the download path
 python3 tests/test_verify.py ClaudeZip   # the claude.ai archive
+python3 tests/test_verify.py OpenAiTargets  # AGENTS.md sync + the ChatGPT package
 python3 tests/test_verify.py Corpus      # requires DECIPHER_DQ_CORPUS
 ```
 

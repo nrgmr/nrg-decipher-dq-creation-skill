@@ -492,6 +492,99 @@ class ClaudeZip(unittest.TestCase):
         self.assertNotIn("<", desc)
 
 
+class OpenAiTargets(unittest.TestCase):
+    """Codex and ChatGPT load instructions differently, and both impose caps."""
+
+    def script(self, name, *args):
+        return subprocess.run(
+            [sys.executable, str(ROOT / "scripts" / name)] + list(args),
+            capture_output=True, text=True, cwd=str(ROOT))
+
+    def test_agents_md_is_in_sync_with_skill_md(self):
+        """A hand-maintained second copy of the guidance would drift.
+
+        This is the same failure the skill's own generated_sync check exists to
+        catch, applied to the skill itself.
+        """
+        result = self.script("build_agents_md.py", "--check")
+        self.assertEqual(0, result.returncode,
+                         "AGENTS.md is stale. Run scripts/build_agents_md.py\n"
+                         + result.stderr)
+
+    def test_agents_md_fits_the_codex_instruction_cap(self):
+        size = len((ROOT / "AGENTS.md").read_bytes())
+        self.assertLessEqual(size, 32 * 1024,
+                             "Codex caps concatenated instructions at 32 KiB")
+
+    def test_agents_md_carries_no_yaml_frontmatter(self):
+        text = (ROOT / "AGENTS.md").read_text()
+        self.assertFalse(text.startswith("---"),
+                         "Codex has no use for the frontmatter and it costs cap")
+        self.assertIn("GENERATED", text.split("\n")[0],
+                      "a generated file must say so on line one")
+
+    def test_chatgpt_package_respects_both_caps(self):
+        result = self.script("build_chatgpt.py")
+        self.assertEqual(0, result.returncode, result.stderr)
+        out = ROOT / "dist" / "chatgpt"
+        instructions = (out / "INSTRUCTIONS.md").read_text()
+        self.assertLessEqual(len(instructions), 8000,
+                             "a custom GPT will not save longer instructions")
+        knowledge = [p for p in out.iterdir() if p.name != "INSTRUCTIONS.md"]
+        self.assertLessEqual(len(knowledge), 10,
+                             "a custom GPT accepts at most 10 knowledge files")
+
+    def test_chatgpt_instructions_carry_the_invariants(self):
+        (ROOT / "dist" / "chatgpt").exists() or self.script("build_chatgpt.py")
+        text = (ROOT / "dist" / "chatgpt" / "INSTRUCTIONS.md").read_text()
+        for phrase in ("CANNOT upload", "EXPORT", "immutable", "verify"):
+            self.assertIn(phrase, text,
+                          "the instructions must carry the invariant %r" % phrase)
+
+    def test_chatgpt_tools_zip_runs_standalone(self):
+        """The sandbox has no reference/, no tests/ and no SKILL.md.
+
+        If the tooling needs any of them, the ChatGPT path is broken and the
+        failure would only show up in front of a user.
+        """
+        import zipfile
+        self.script("build_chatgpt.py")
+        archive = ROOT / "dist" / "chatgpt" / "decipher-dq-tools.zip"
+        sandbox = Path(tempfile.mkdtemp(prefix="dqgpt-"))
+        try:
+            with zipfile.ZipFile(archive) as z:
+                z.extractall(sandbox)
+            self.assertFalse((sandbox / "reference").exists())
+            self.assertFalse((sandbox / "config.local.json").exists(),
+                             "the personal host value must not be shipped")
+
+            spec = json.loads(
+                (sandbox / "archetypes" / "basic" / "archetype.json").read_text()
+            )["spec_template"]
+            spec.update({"name": "sandbox_demo", "title": "Sandbox Demo",
+                         "owner": "t@example.invalid", "scope": "radio"})
+            spec_path = sandbox / "spec.json"
+            spec_path.write_text(
+                json.dumps(json.loads(json.dumps(spec).replace(
+                    "__DQ_UPPER__", "SANDBOX_DEMO")), indent=2))
+
+            made = subprocess.run(
+                [sys.executable, "scripts/dq.py", "new", "--archetype", "basic",
+                 "--spec", "spec.json", "--into", "out/lib", "--apply"],
+                capture_output=True, text=True, cwd=str(sandbox))
+            self.assertEqual(0, made.returncode, made.stderr)
+
+            checked = subprocess.run(
+                [sys.executable, "scripts/dq.py", "verify",
+                 "out/lib/sandbox_demo/v1"],
+                capture_output=True, text=True, cwd=str(sandbox))
+            self.assertEqual(0, checked.returncode,
+                             "verify must pass inside the sandbox:\n"
+                             + checked.stdout + checked.stderr)
+        finally:
+            shutil.rmtree(sandbox, ignore_errors=True)
+
+
 class Guards(unittest.TestCase):
     def test_production_path_is_refused(self):
         result = dq("verify", "/tmp/prod_environment/whatever")
