@@ -95,24 +95,27 @@ a check is a behaviour that cannot ship broken.**
 The skill is a plain directory of Markdown, Python and XML. It has **no dependencies**
 beyond Python 3.10 or newer, which is already present wherever Claude Code runs.
 
+The clone target must be named `decipher-dq`. Claude Code takes the skill name from
+the directory, not from the repository, and the two differ here.
+
 ### As a personal skill — available in every project
 
 ```bash
-git clone https://github.com/<owner>/decipher-dq.git \
+git clone https://github.com/lyle-nrg/nrg-decipher-dq-creation-skill.git \
   ~/.claude/skills/decipher-dq
 ```
 
 ### As a project skill — checked in and shared with the team
 
 ```bash
-git clone https://github.com/<owner>/decipher-dq.git \
+git clone https://github.com/lyle-nrg/nrg-decipher-dq-creation-skill.git \
   .claude/skills/decipher-dq
 ```
 
 Or, to keep it updatable inside an existing repository:
 
 ```bash
-git submodule add https://github.com/<owner>/decipher-dq.git \
+git submodule add https://github.com/lyle-nrg/nrg-decipher-dq-creation-skill.git \
   .claude/skills/decipher-dq
 ```
 
@@ -121,7 +124,7 @@ git submodule add https://github.com/<owner>/decipher-dq.git \
 ```bash
 cd ~/.claude/skills/decipher-dq
 python3 scripts/dq.py --help
-python3 tests/test_verify.py        # 86 tests, roughly 45 seconds
+python3 tests/test_verify.py        # 86 tests, a few seconds
 ```
 
 Claude Code discovers the skill from `SKILL.md` at the directory root. Ask for a DQ in
